@@ -6,10 +6,12 @@ status: building
 ---
 # DGM Publishing Hub POC
 
-## Current State (13 Nov 2026)
+## Current State (16 Nov 2026)
 - Screen works: upload clip, caption, pick accounts, publish now or schedule (Asia/Dubai), history table with status and post link.
 - Provider: Zernio. Connected accounts: Instagram `aivideo.3321`, YouTube `athishvenkatesan9293`.
-- Backend tests pass (4). Frontend builds. A real post has NOT been published yet (waiting for the user's first click).
+- Local AI (Ollama: qwen2.5vl:7b + qwen2.5:7b-instruct) analyses the video and writes title, caption and hashtags per platform. Tested on a sample clip.
+- Backend tests pass (8). Frontend builds. Posts have been published through the app (history shows them).
+- Full setup and usage: see README.md.
 
 ## Run
 Backend: `cd backend && .venv/bin/uvicorn app:app --port 8100`
@@ -22,7 +24,8 @@ Not scaffolded with `dak init`: this is a single-screen POC. SQLite instead of P
 
 ## Known limits
 - Statuses refresh when the history is read (every 10 s), not by webhook.
-- No withdraw or retry button yet.
+- No withdraw, retry or cancel button yet.
+- A scheduled YouTube upload goes live immediately via Zernio; use Private or Unlisted to hold it back.
 - Instagram needs a professional account; YouTube uploads are quota-limited.
 
 ## 2026-11-13 - in-app account management and new layout
