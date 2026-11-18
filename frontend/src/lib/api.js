@@ -19,3 +19,7 @@ export const connectAccount = (platform) => fetch("/api/accounts/connect", {
   method: "POST", headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ platform, return_to: window.location.origin + "/?connected=1" }) }).then(json)
 export const disconnectAccount = (id) => fetch(`/api/accounts/${id}`, { method: "DELETE" }).then(json)
+
+export const fbCheck = () => fetch("/api/facebook/check").then(json)
+export const fbHistory = () => fetch("/api/facebook/posts").then(json)
+export const fbPublish = (form) => fetch("/api/facebook/posts", { method: "POST", body: form }).then(json)

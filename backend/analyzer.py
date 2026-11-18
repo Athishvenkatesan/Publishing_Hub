@@ -13,7 +13,7 @@ class AnalyzerError(Exception):
 
 
 async def _chat(model: str, messages: list, *, json_mode: bool, timeout: float) -> str:
-    body = {"model": model, "messages": messages, "stream": False, "options": {"temperature": 0.4}}
+    body = {"model": model, "messages": messages, "stream": False, "options": {"temperature": 0.4, "num_ctx": settings.num_ctx}}
     if json_mode:
         body["format"] = "json"
     try:

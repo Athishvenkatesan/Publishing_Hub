@@ -32,3 +32,10 @@ Not scaffolded with `dak init`: this is a single-screen POC. SQLite instead of P
 - Accounts are managed inside the app (slide-in panel): `GET /api/accounts`, `POST /api/accounts/connect` (Zernio OAuth link, returns to the app), `DELETE /api/accounts/{id}`. No need to open zernio.com.
 - New layout: green hero band with live counts, three fluid columns (upload, text, time + live post previews), history below.
 - Zernio free plan allows 2 connected accounts; connecting a third returns a 402 message that the panel shows.
+
+## 2026-11-18 - Facebook screen (Meta Graph API)
+- New screen `#/facebook` (nav bar links both screens): checks the Meta token (user, permissions, Pages, what it can do for Facebook / Instagram / WhatsApp), publishes a video to a Facebook Page now or scheduled (10 minutes to 75 days ahead), own history.
+- Backend: `meta.py` (only Meta-aware module), `routes/facebook.py`, token in `backend/.env` as `META_ACCESS_TOKEN` (never commit). Page tokens stay on the server.
+- Graph API Explorer tokens last about 1 hour. When one expires the screen says so. For longer use, exchange it for a long-lived token (needs the app secret).
+- Facebook rows are kept out of the Instagram + YouTube history. Instagram and WhatsApp via Meta are checked but not wired yet.
+- Tests: 12 pass (4 new, Meta mocked). No real Facebook post has been made.

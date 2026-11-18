@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 import models  # noqa: F401  (register tables)
 from db import Base, engine
-from routes import accounts, analyze, posts
+from routes import accounts, analyze, facebook, posts
 
 
 class JsonFormatter(logging.Formatter):
@@ -34,6 +34,7 @@ app = FastAPI(title="DGM Publishing POC", lifespan=lifespan)
 app.include_router(accounts.router)
 app.include_router(posts.router)
 app.include_router(analyze.router)
+app.include_router(facebook.router)
 
 
 @app.get("/healthz")

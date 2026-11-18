@@ -4,6 +4,7 @@ import { Heading } from "@astryxdesign/core/Heading"
 import { Text } from "@astryxdesign/core/Text"
 import AccountsPanel from "../components/AccountsPanel.jsx"
 import Hero from "../components/Hero.jsx"
+import Nav from "../components/Nav.jsx"
 import HistoryTable from "../components/HistoryTable.jsx"
 import PublishForm from "../components/PublishForm.jsx"
 import { getAccounts, getHistory } from "../lib/api.js"
@@ -24,6 +25,7 @@ export default function Publish() {
 
   return (
     <>
+      <Nav />
       <Hero items={items} accounts={accounts} onAccounts={() => setPanel(true)} />
       <div className="page stack">
         {accErr && <Banner status="error" title="Accounts not loaded" description={accErr} />}

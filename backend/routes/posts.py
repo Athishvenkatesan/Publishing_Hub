@@ -119,7 +119,8 @@ async def refresh(row: Publication, session: AsyncSession):
 
 @router.get("/posts")
 async def history(session: AsyncSession = Depends(get_session)):
-    rows = (await session.scalars(select(Publication).order_by(Publication.id.desc()).limit(100))).all()
+    rows = (await session.scalars(select(Publication).where(Publication.platform != "facebook")  # Facebook has its own screen
+                                  .order_by(Publication.id.desc()).limit(100))).all()
     open_rows = [r for r in rows if r.status not in FINAL and r.zernio_post_id]
     await asyncio.gather(*(refresh(r, session) for r in open_rows))
     await session.commit()

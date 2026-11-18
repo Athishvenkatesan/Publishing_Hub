@@ -102,6 +102,8 @@ Open `backend/.env` and set `ZERNIO_API_KEY`. Get the key from the Zernio dashbo
 | `ZERNIO_BASE_URL` | `https://zernio.com/api/v1` | Zernio API address. |
 | `DEFAULT_TIMEZONE` | `Asia/Dubai` | Time zone for scheduled posts. |
 | `PUBLIC_BASE_URL` | (empty) | Not used by the current flow. |
+| `META_ACCESS_TOKEN` | (empty) | Meta Graph API user token for the Facebook screen. |
+| `META_GRAPH_VERSION` | `v21.0` | Graph API version. |
 
 You can also override the AI settings in `.env`: `OLLAMA_URL`, `VISION_MODEL`, `TEXT_MODEL`, `ANALYZE_FRAMES` (default 6) and `MAX_VIDEO_MB` (default 300).
 
@@ -136,6 +138,16 @@ If the page says "Accounts not loaded" or "Local AI is not ready", the backend o
 
 For YouTube you can choose **Public**, **Unlisted** or **Private**.
 
+## Facebook screen (Meta Graph API)
+
+Open **http://localhost:3100/#/facebook**. It uses a Meta user token from `backend/.env` (`META_ACCESS_TOKEN`), separate from Zernio.
+
+- **Token check:** shows who the token belongs to, its permissions, the Pages it reaches, and whether it can publish to Facebook, publish to Instagram, or send WhatsApp messages. Read-only.
+- **Publish:** pick a Page and a video, then publish now or schedule (10 minutes to 75 days ahead). Facebook posts have their own history table.
+- **Needs:** the `pages_manage_posts`, `pages_read_engagement` and `pages_show_list` permissions, and a Page where you can create content.
+- **Tokens expire:** a token from the Graph API Explorer lasts about 1 hour. When it expires the screen says so. Generate a new one, replace the value in `.env`, and restart the backend.
+- **Not wired yet:** Instagram and WhatsApp through Meta are checked but cannot send from this screen.
+
 ## API
 
 All routes are under `/api`.
@@ -149,6 +161,9 @@ All routes are under `/api`.
 | `POST` | `/analyze` | Upload a video, get description, title, caption, hashtags |
 | `POST` | `/posts` | Publish now or schedule (multipart: file, texts, account_ids, mode, scheduled_at, tz) |
 | `GET` | `/posts` | History, refreshed from Zernio |
+| `GET` | `/facebook/check` | Check the Meta token: user, permissions, Pages, capabilities |
+| `POST` | `/facebook/posts` | Publish a video to a Facebook Page, now or scheduled |
+| `GET` | `/facebook/posts` | Facebook history, refreshed from Meta |
 
 Outside `/api`: `GET /healthz` (alive) and `GET /readyz` (ready).
 
@@ -158,7 +173,7 @@ Outside `/api`: `GET /healthz` (alive) and `GET /readyz` (ready).
 npm run test
 ```
 
-Runs the backend tests with Zernio mocked: publish now, schedule, failure, text rules, past-time and bad-file rejection, connect and disconnect, and the AI analysis. No real post is made.
+Runs the backend tests with Zernio and Meta mocked: publish now, schedule, failure, text rules, past-time and bad-file rejection, connect and disconnect, and the AI analysis. No real post is made.
 
 ## Things to know
 

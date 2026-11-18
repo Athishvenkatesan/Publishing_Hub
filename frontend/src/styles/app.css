@@ -78,3 +78,18 @@ button, input, textarea, select { font-family: inherit; }
 /* Date + time boxes share the card width instead of overflowing it */
 .when-dt { flex-wrap: wrap; width: 100%; max-width: 100%; }
 .when-dt > * { flex: 1 1 150px; min-width: 0; }
+
+/* nav + facebook screen */
+.nav { background: #002f27; display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-4); padding: 0 var(--spacing-5); flex-wrap: wrap; }
+.nav-brand { color: #bfe6dc; font-weight: 700; letter-spacing: .06em; font-size: 12px; text-transform: uppercase; }
+.nav-links { display: flex; gap: var(--spacing-1); }
+.nav-link { color: #9fd3c5; text-decoration: none; padding: 12px 14px; font-weight: 600; font-size: 14px; border-bottom: 3px solid transparent; }
+.nav-link:hover { color: #fff; }
+.nav-link--on { color: #fff; border-bottom-color: #7fe0c6; }
+.hero--fb { border-bottom-color: #1877f2; }
+.grid--two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 860px) { .grid--two { grid-template-columns: 1fr; } }
+.caps { display: grid; gap: var(--spacing-2); }
+.cap { display: flex; flex-direction: column; gap: 4px; padding: var(--spacing-3); border: 1px solid var(--color-border-emphasized, #d5dbe0); border-radius: 10px; }
+.cap--ok { border-color: var(--color-accent); background: var(--color-accent-muted, #e3f3ef); }
+.history .acc, .step .acc { margin-top: var(--spacing-2); }
