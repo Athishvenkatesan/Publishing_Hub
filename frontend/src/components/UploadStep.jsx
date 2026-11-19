@@ -4,24 +4,10 @@ import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/Segme
 import { Spinner } from "@astryxdesign/core/Spinner"
 import { Text } from "@astryxdesign/core/Text"
 import { TextInput } from "@astryxdesign/core/TextInput"
+import AiFound from "./AiFound.jsx"
 import FilePick from "./FilePick.jsx"
 
 const MAX_MB = 300
-
-function Found({ meta, description }) {
-  const mins = Math.floor(meta.duration_s / 60), secs = Math.round(meta.duration_s % 60)
-  const short = meta.orientation === "vertical" && meta.duration_s <= 180
-  return (
-    <div className="found">
-      <Text weight="semibold" size="sm">What the AI found</Text>
-      <Text size="sm">{description}</Text>
-      <Text size="sm" color="secondary">
-        {mins}:{String(secs).padStart(2, "0")} - {meta.orientation} {meta.width}x{meta.height} - {meta.has_audio ? "has sound" : "no sound"}
-        {short ? " - posts as a YouTube Short / Instagram Reel" : " - posts as a normal video"}
-      </Text>
-    </div>
-  )
-}
 
 export default function UploadStep({ file, preview, onFile, lang, setLang, hint, setHint, ai, found, onAnalyze }) {
   return (
@@ -42,7 +28,7 @@ export default function UploadStep({ file, preview, onFile, lang, setLang, hint,
         <div className="working"><Spinner /><Text size="sm">Your local model is watching the video and writing the text. This takes about a minute.</Text></div>
       )}
       {ai.state === "error" && <Banner status="error" title="Could not analyse the video" description={ai.reason} />}
-      {found && <Found {...found} />}
+      {found && <AiFound {...found} />}
       {file && ai.state !== "working" && (
         <div><Button variant="secondary" label={ai.state === "done" ? "Regenerate text" : "Analyse video"} onClick={onAnalyze} /></div>
       )}

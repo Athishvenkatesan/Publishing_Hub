@@ -1,9 +1,11 @@
 """Local video analysis: frames -> vision model (what is in it) -> text model (platform copy).
 Everything runs on this machine through Ollama; no video or frame leaves it."""
 import json
+import re
 import httpx
 
 from config import settings
+from youtube import CATEGORIES
 
 LANG = {"en": "English", "ar": "Arabic", "both": "English first, then the Arabic translation on a new line"}
 
@@ -69,3 +71,90 @@ Only describe what the description says. Do not invent facts, names, numbers or 
         }
     except (KeyError, ValueError, TypeError):
         raise AnalyzerError("The local model returned an unusable answer. Try Regenerate.")
+
+
+CATEGORY_IDS = {name: cid for cid, name in CATEGORIES.items()}
+
+
+def is_short(meta: dict) -> bool:
+    return meta["orientation"] == "vertical" and meta["duration_s"] <= 180
+
+
+CAUSE_WORDS = ("campaign", "cause", "charity", "donat", "volunteer", "awareness", "nonprofit", "non-profit", "activis", "fundrais")
+
+
+def sane_category(name: str, reason: str, description: str, hint: str) -> tuple[str, str]:
+    """Small models over-pick Nonprofits & Activism. Accept it only when a campaign or cause is actually mentioned."""
+    if name == "Nonprofits & Activism" and not any(w in f"{description} {hint}".lower() for w in CAUSE_WORDS):
+        return "People & Blogs", "Defaulted to People & Blogs: no campaign or cause is mentioned. Change it under Advanced options if needed."
+    return name, reason
+
+
+async def write_youtube(description: str, meta: dict, lang: str, hint: str) -> dict:
+    """A fuller YouTube package than write_copy: title options, structured description, tags, hashtags, category, thumbnail ideas."""
+    short = is_short(meta)
+    prompt = f"""You write YouTube metadata for a government communications team. Tone: clear, professional, warm.
+Video description: {description}
+{('User context: ' + hint) if hint else ''}
+Language: {LANG.get(lang, 'English')}.
+Return ONLY JSON with this exact shape:
+{{"titles": ["<3 different title options, each max 90 chars, specific, no clickbait>"],
+ "summary": "<2 sentences describing the video, max 250 chars>",
+ "key_points": ["<3 to 5 short bullet points, each taken from the description>"],
+ "call_to_action": "<one short line inviting viewers to watch, share or follow>",
+ "hashtags": ["<5 relevant single-word or camel-case tags without #>"],
+ "tags": ["<10 to 15 search keywords>"],
+ "category": "<exactly one of: {', '.join(CATEGORY_IDS)}. Pick the closest everyday topic. Use Nonprofits & Activism only for a campaign or cause, and People & Blogs when unsure>",
+ "category_reason": "<one short sentence>",
+ "thumbnail_ideas": ["<2 short thumbnail ideas using only what is visible>"]}}
+Only use what the description says. Do not invent facts, names, numbers or dates."""
+    raw = await _chat(settings.text_model, [{"role": "user", "content": prompt}], json_mode=True, timeout=240)
+    try:
+        d = json.loads(raw)
+        titles = [str(t).strip()[:100] for t in d["titles"] if str(t).strip()][:3]
+        if not titles:
+            raise ValueError("no titles")
+        hashtags = _clean_tags(d.get("hashtags"), 5)
+        tags = _clean_tags(d.get("tags"), 15) or hashtags
+        shown = (["Shorts"] if short else []) + hashtags
+        points = [f"- {str(p).strip()}" for p in d.get("key_points", []) if str(p).strip()][:5]
+        body = "\n\n".join(x for x in [str(d.get("summary", "")).strip(), "\n".join(points), str(d.get("call_to_action", "")).strip(),
+                                         " ".join(f"#{h}" for h in shown[:5])] if x)
+        name = d.get("category") if d.get("category") in CATEGORY_IDS else "People & Blogs"
+        name, reason = sane_category(name, str(d.get("category_reason", "")).strip(), description, hint)
+        ideas = [str(t).strip() for t in d.get("thumbnail_ideas", []) if str(t).strip()][:3]
+        ideas = ideas or [f"A clear still showing: {p.lstrip('- ')}" for p in points[:2]]  # small models often skip these
+        return {"titles": titles, "title": titles[0], "description": body[:5000], "tags": tags, "hashtags": hashtags,
+                "category_id": CATEGORY_IDS[name], "category_name": name, "category_reason": reason,
+                "thumbnail_ideas": ideas,
+                "format": "short" if short else "video",
+                "format_reason": ("Vertical and 3 minutes or less: YouTube publishes it as a Short." if short
+                                  else "Not vertical, or longer than 3 minutes: YouTube publishes it as a normal video.")}
+    except (KeyError, ValueError, TypeError):
+        raise AnalyzerError("The local model returned an unusable answer. Try Regenerate.")
+
+
+def json_in(text: str) -> dict:
+    """The first JSON object in a model reply. Vision models often wrap it in prose or code fences."""
+    m = re.search(r"\{.*\}", text, re.S)
+    return json.loads(m.group(0)) if m else {}
+
+
+async def classify(frames: list[str], meta: dict, hint: str) -> dict | None:
+    """Ask the vision model two things about the video: is it for children, and does it look AI-generated. None if it gives nothing usable."""
+    prompt = ("These are frames from one short video, in time order. Answer two questions about the video as a whole. "
+              "1) for_kids: is it MADE FOR CHILDREN as the audience (cartoon characters, toys, nursery rhymes, children's learning)? "
+              "Children merely appearing in it does not count. "
+              "2) ai_generated: does it look AI-generated or computer-generated rather than filmed with a camera "
+              "(unnatural or warped motion, impossible detail, over-smooth or surreal look, garbled text)? Real camera footage of real places is false. "
+              'Judge only from the pictures. Reply ONLY with JSON: {"for_kids": true|false, "kids_confidence": "high|medium|low", "kids_reason": "<short>", '
+              '"ai_generated": true|false, "ai_confidence": "high|medium|low", "ai_reason": "<short>"}')
+    try:
+        raw = await _chat(settings.vision_model, [{"role": "user", "content": prompt, "images": frames}], json_mode=False, timeout=300)
+        d = json_in(raw)
+    except (AnalyzerError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(d, dict) or "ai_generated" not in d:
+        return None
+    return {"for_kids": bool(d.get("for_kids")), "kids_confidence": str(d.get("kids_confidence", "low")).lower(), "kids_reason": str(d.get("kids_reason", ""))[:160],
+            "ai_generated": bool(d.get("ai_generated")), "ai_confidence": str(d.get("ai_confidence", "low")).lower(), "ai_reason": str(d.get("ai_reason", ""))[:160]}

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 import db
 import models  # noqa: F401
+import yt_accounts
 import youtube
 from config import settings
 from db import Base
@@ -25,7 +26,10 @@ UP = "https://www.googleapis.com/upload/youtube/v3/videos"
 async def client(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "youtube_client_id", "cid")
     monkeypatch.setattr(settings, "youtube_client_secret", "csecret")
-    monkeypatch.setattr(youtube, "TOKEN_FILE", tmp_path / "yt.json")
+    monkeypatch.setattr(yt_accounts, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(yt_accounts, "ENV_FILE", tmp_path / "none.env")  # never read the real .env in tests
+    monkeypatch.setattr(yt_accounts, "ACCOUNTS_FILE", tmp_path / "accounts.json")  # nor the real accounts file
+    monkeypatch.delenv("YOUTUBE_ACCOUNTS", raising=False)
     eng = create_async_engine(f"sqlite+aiosqlite:///{tmp_path/'t.db'}")
     db.engine, db.SessionLocal = eng, async_sessionmaker(eng, expire_on_commit=False)
     async with eng.begin() as c:
@@ -40,8 +44,10 @@ async def client(tmp_path, monkeypatch):
         yield c
 
 
-def connect_now():
-    youtube.TOKEN_FILE.write_text(json.dumps({"refresh_token": "RT"}))
+def connect_now(key="main", token="RT"):
+    p = yt_accounts.token_path(key)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps({"refresh_token": token}))
 
 
 def mock_upload(vid="VID1"):
@@ -55,9 +61,18 @@ def video():
     return {"file": ("clip.mp4", io.BytesIO(b"x" * 2048), "video/mp4")}
 
 
+@respx.mock
 async def test_status_before_connecting(client):
+    respx.get(youtube.AUTH).mock(return_value=httpx.Response(200, text="<html>Sign in - Choose an account</html>"))
     d = (await client.get("/api/youtube/status")).json()
-    assert d["configured"] is True and d["connected"] is False and d["channel"] is None
+    assert d["configured"] is True and d["connected"] is False and d["channel"] is None and d["setup_problem"] == ""
+
+
+@respx.mock
+async def test_status_explains_redirect_mismatch_before_the_user_hits_googles_error(client):
+    respx.get(youtube.AUTH).mock(return_value=httpx.Response(200, text="Error 400: redirect_uri_mismatch"))
+    d = (await client.get("/api/youtube/status")).json()
+    assert "Authorized redirect URIs" in d["setup_problem"] and "/api/youtube/callback" in d["setup_problem"]
 
 
 async def test_connect_url_and_callback_saves_token(client):
@@ -67,7 +82,7 @@ async def test_connect_url_and_callback_saves_token(client):
     with respx.mock:
         respx.post(TOK).mock(return_value=httpx.Response(200, json={"access_token": "AT", "refresh_token": "RT"}))
         r = await client.get("/api/youtube/callback", params={"code": "abc", "state": q["state"][0]})
-    assert r.status_code == 307 and r.headers["location"].endswith("#/youtube?connected=1")
+    assert r.status_code == 307 and r.headers["location"].endswith("#/youtube?connected=1&account=main")
     assert youtube.connected()
     bad = await client.get("/api/youtube/callback", params={"code": "abc", "state": "forged"})
     assert "error=" in bad.headers["location"]
@@ -80,7 +95,9 @@ async def test_publish_now_uploads_public_then_becomes_published(client):
     r = await client.post("/api/youtube/posts", files=video(), data={"title": "My title", "description": "D", "tags": "a, #b", "privacy": "public", "mode": "now"})
     assert r.status_code == 200, r.text
     meta = json.loads(init.calls[0].request.content)
-    assert meta["status"] == {"privacyStatus": "public", "selfDeclaredMadeForKids": False}
+    assert meta["status"] == {"privacyStatus": "public", "selfDeclaredMadeForKids": False, "license": "youtube", "embeddable": True,
+                              "publicStatsViewable": True, "containsSyntheticMedia": False}
+    assert meta["snippet"]["categoryId"] == "22" and init.calls[0].request.url.params["notifySubscribers"] == "true"
     assert meta["snippet"]["title"] == "My title" and meta["snippet"]["tags"] == ["a", "b"]
     assert r.json()["items"][0]["status"] == "PUBLISHING"
     respx.get(VID).mock(return_value=httpx.Response(200, json={"items": [{"status": {"uploadStatus": "processed", "privacyStatus": "public"}}]}))
@@ -121,3 +138,109 @@ async def test_publish_needs_connection_and_title(client):
     assert r.status_code == 401 and "not connected" in r.json()["detail"]
     r = await client.post("/api/youtube/posts", files=video(), data={"title": "  "})
     assert r.status_code == 422
+
+
+@respx.mock
+async def test_advanced_options_reach_youtube(client):
+    connect_now()
+    init = mock_upload("VID4")
+    r = await client.post("/api/youtube/posts", files=video(), data={
+        "title": "T", "category_id": "27", "made_for_kids": "true", "language": "ar", "license": "creativeCommon",
+        "embeddable": "false", "public_stats": "false", "synthetic": "true", "notify": "false"})
+    assert r.status_code == 200, r.text
+    meta = json.loads(init.calls[0].request.content)
+    assert meta["snippet"]["categoryId"] == "27" and meta["snippet"]["defaultLanguage"] == "ar"
+    assert meta["status"] | {} == {**meta["status"], "selfDeclaredMadeForKids": True, "license": "creativeCommon", "embeddable": False,
+                                   "publicStatsViewable": False, "containsSyntheticMedia": True}
+    assert init.calls[0].request.url.params["notifySubscribers"] == "false"
+    bad = await client.post("/api/youtube/posts", files=video(), data={"title": "T", "category_id": "999"})
+    assert bad.status_code == 422
+
+
+def processing(status):
+    return httpx.Response(200, json={"items": [{"status": {"uploadStatus": "processed"}, "processingDetails": {"processingStatus": status}}]})
+
+
+@respx.mock
+async def test_thumbnail_waits_for_processing_then_is_set(client, tmp_path, monkeypatch):
+    import yt_thumbnail
+    monkeypatch.setattr(yt_thumbnail, "PENDING", tmp_path / "pending")
+    monkeypatch.setattr(yt_thumbnail, "POLL_S", 0.01)
+    connect_now()
+    mock_upload("VID5")
+    started = []
+    monkeypatch.setattr(yt_thumbnail, "start", lambda a, v: started.append(v))  # run apply() ourselves, deterministically
+    files = {**video(), "thumbnail": ("t.png", io.BytesIO(b"p" * 100), "image/png")}
+    r = await client.post("/api/youtube/posts", files=files, data={"title": "T"})
+    assert r.status_code == 200 and r.json()["thumbnail"] == "pending" and started == ["VID5"]
+    assert (tmp_path / "pending" / "main~VID5.png").exists()
+    ok = respx.post(youtube.THUMB).mock(return_value=httpx.Response(200, json={}))
+    respx.get(VID).mock(side_effect=[processing("processing"), processing("succeeded")])  # a Short is not ready on the first look
+    await yt_thumbnail.apply("main", "VID5")
+    assert ok.call_count == 1 and ok.calls[0].request.url.params["videoId"] == "VID5"
+    assert not (tmp_path / "pending" / "main~VID5.png").exists()
+
+
+@respx.mock
+async def test_thumbnail_failure_is_a_note_not_a_failed_upload(client, tmp_path, monkeypatch):
+    import yt_thumbnail
+    monkeypatch.setattr(yt_thumbnail, "PENDING", tmp_path / "pending")
+    monkeypatch.setattr(yt_thumbnail, "start", lambda a, v: None)
+    connect_now()
+    mock_upload("VID6")
+    files = {**video(), "thumbnail": ("t.png", io.BytesIO(b"p" * 100), "image/png")}
+    await client.post("/api/youtube/posts", files=files, data={"title": "T"})
+    respx.get(VID).mock(return_value=processing("succeeded"))
+    respx.post(youtube.THUMB).mock(return_value=httpx.Response(403, json={"error": {"message": "channel not verified"}}))
+    await yt_thumbnail.apply("main", "VID6")
+    h = (await client.get("/api/youtube/posts")).json()["items"][0]
+    assert h["error"].startswith("Thumbnail not set: ") and "channel not verified" in h["error"]
+    assert h["status"] in ("PUBLISHING", "PUBLISHED")  # the upload itself is fine
+
+
+async def test_bad_thumbnail_is_skipped_with_a_warning(client):
+    connect_now()
+    with respx.mock:
+        mock_upload("VID7")
+        files = {**video(), "thumbnail": ("t.gif", io.BytesIO(b"p"), "image/gif")}
+        r = await client.post("/api/youtube/posts", files=files, data={"title": "T"})
+    assert r.status_code == 200 and r.json()["thumbnail"] == "none" and "Thumbnail skipped" in r.json()["warnings"][0]
+
+
+@respx.mock
+async def test_unverified_channel_thumbnail_refusal_is_explained(client, tmp_path, monkeypatch):
+    import yt_thumbnail
+    monkeypatch.setattr(yt_thumbnail, "PENDING", tmp_path / "pending")
+    monkeypatch.setattr(yt_thumbnail, "start", lambda a, v: None)
+    connect_now()
+    mock_upload("VID8")
+    files = {**video(), "thumbnail": ("t.png", io.BytesIO(b"p" * 100), "image/png")}
+    await client.post("/api/youtube/posts", files=files, data={"title": "T"})
+    respx.get(VID).mock(return_value=processing("succeeded"))
+    respx.post(youtube.THUMB).mock(return_value=httpx.Response(403, json={"error": {
+        "message": "The authenticated user doesn't have permissions to upload and set custom video thumbnails.", "errors": [{"reason": "forbidden"}]}}))
+    await yt_thumbnail.apply("main", "VID8")
+    err = (await client.get("/api/youtube/posts")).json()["items"][0]["error"]
+    assert "youtube.com/verify" in err and "The video itself is fine" in err
+
+
+@respx.mock
+async def test_status_tells_the_screen_whether_the_channel_is_verified(client):
+    respx.get(youtube.AUTH).mock(return_value=httpx.Response(200, text="Sign in"))
+    connect_now()
+    respx.post(TOK).mock(return_value=httpx.Response(200, json={"access_token": "AT"}))
+    for flag, expect in (("eligible", False), ("allowed", True)):
+        respx.get("https://www.googleapis.com/youtube/v3/channels").mock(return_value=httpx.Response(200, json={"items": [
+            {"id": "UC1", "snippet": {"title": "C"}, "statistics": {}, "status": {"longUploadsStatus": flag}}]}))
+        ch = (await client.get("/api/youtube/status")).json()["channel"]
+        assert ch["verified"] is expect and ch["verify_url"] == "https://www.youtube.com/verify"
+
+
+@respx.mock
+async def test_connect_with_check_refuses_instead_of_sending_the_user_to_googles_error_page(client):
+    respx.get(youtube.AUTH).mock(return_value=httpx.Response(200, text="Error 400: redirect_uri_mismatch"))
+    r = await client.get("/api/youtube/connect", params={"check": True})
+    assert r.status_code == 409 and "Authorized redirect URIs" in r.json()["detail"] and "Desktop app" in r.json()["detail"]
+    respx.get(youtube.AUTH).mock(return_value=httpx.Response(200, text="Sign in"))
+    ok = await client.get("/api/youtube/connect", params={"check": True})
+    assert ok.status_code == 200 and ok.json()["url"].startswith("https://accounts.google.com")

@@ -24,6 +24,19 @@ def reply(content):
     return httpx.Response(200, json={"message": {"content": content}})
 
 
+NO_VERDICT = "I cannot tell."  # a vision reply that is not JSON: the classification is simply skipped
+
+
+def by_model(vision, text):
+    """Answer each Ollama call by which model it is for. `vision` and `text` are the replies in order."""
+    vision, text = list(vision), list(text)
+
+    def handler(request):
+        model = json.loads(request.content)["model"]
+        return (vision if model == "qwen2.5vl:7b" else text).pop(0)
+    return handler
+
+
 @respx.mock
 async def test_analyze_returns_platform_copy_and_sends_frames_to_vision_model(clip):
     good = json.dumps({"instagram": {"caption": "Hello", "hashtags": ["#One", "Two Words", "one"]},
@@ -45,3 +58,94 @@ async def test_analyze_reports_missing_model_clearly(clip):
     async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
         r = await c.post("/api/analyze", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")})
     assert r.status_code == 503 and "ollama pull" in r.json()["detail"]
+
+
+@respx.mock
+async def test_analyze_youtube_returns_a_full_package(clip):
+    pkg = json.dumps({"titles": ["One", "Two", "Three"], "summary": "A test pattern.", "key_points": ["Colours", "Numbers"],
+                      "call_to_action": "Watch now.", "hashtags": ["#Test", "Pattern"], "tags": ["a", "b"],
+                      "category": "Education", "category_reason": "It teaches.", "thumbnail_ideas": ["Big colours"]})
+    respx.post(OLLAMA).mock(side_effect=by_model([reply("A test pattern."), reply(NO_VERDICT)], [reply(pkg)]))
+    async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
+        r = await c.post("/api/analyze/youtube", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")}, data={"lang": "en"})
+    assert r.status_code == 200, r.text
+    y = r.json()["youtube"]
+    assert y["titles"] == ["One", "Two", "Three"] and y["title"] == "One" and y["category_id"] == "27"
+    assert y["format"] == "short" and "#Shorts" in y["description"] and "- Colours" in y["description"]
+    assert y["hashtags"] == ["Test", "Pattern"] and y["thumbnail_ideas"] == ["Big colours"]
+
+
+@respx.mock
+async def test_analyze_youtube_unknown_category_falls_back(clip):
+    pkg = json.dumps({"titles": ["One"], "summary": "S", "key_points": [], "call_to_action": "", "hashtags": [], "tags": [],
+                      "category": "Cooking", "category_reason": "", "thumbnail_ideas": []})
+    respx.post(OLLAMA).mock(side_effect=by_model([reply("A test pattern."), reply(NO_VERDICT)], [reply(pkg)]))
+    async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
+        r = await c.post("/api/analyze/youtube", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")})
+    assert r.json()["youtube"]["category_name"] == "People & Blogs"
+
+
+@respx.mock
+async def test_analyze_youtube_fills_thumbnail_ideas_when_the_model_skips_them(clip):
+    pkg = json.dumps({"titles": ["One"], "summary": "S", "key_points": ["Calm waves", "Soft light"], "call_to_action": "",
+                      "hashtags": [], "tags": [], "category": "Travel & Events", "category_reason": "", "thumbnail_ideas": []})
+    respx.post(OLLAMA).mock(side_effect=by_model([reply("A test pattern."), reply(NO_VERDICT)], [reply(pkg)]))
+    async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
+        r = await c.post("/api/analyze/youtube", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")})
+    assert r.json()["youtube"]["thumbnail_ideas"] == ["A clear still showing: Calm waves", "A clear still showing: Soft light"]
+
+
+@respx.mock
+async def test_nonprofit_category_needs_a_cause_in_the_text(clip):
+    pkg = json.dumps({"titles": ["One"], "summary": "S", "key_points": [], "call_to_action": "", "hashtags": [], "tags": [],
+                      "category": "Nonprofits & Activism", "category_reason": "peace", "thumbnail_ideas": ["x"]})
+    respx.post(OLLAMA).mock(side_effect=by_model([reply("A calm ocean."), reply(NO_VERDICT), reply("A water saving campaign."), reply(NO_VERDICT)], [reply(pkg), reply(pkg)]))
+    async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
+        plain = await c.post("/api/analyze/youtube", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")})
+        cause = await c.post("/api/analyze/youtube", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")})
+    assert plain.json()["youtube"]["category_name"] == "People & Blogs" and "Defaulted" in plain.json()["youtube"]["category_reason"]
+    assert cause.json()["youtube"]["category_name"] == "Nonprofits & Activism"
+
+
+PKG = json.dumps({"titles": ["One"], "summary": "S", "key_points": [], "call_to_action": "", "hashtags": [], "tags": [],
+                  "category": "Education", "category_reason": "", "thumbnail_ideas": ["x"]})
+
+
+async def analyse(clip, vision_verdict, hint="", path=None):
+    p = path or clip
+    respx.post(OLLAMA).mock(side_effect=by_model([reply("A cartoon bear sings."), reply(vision_verdict)], [reply(PKG)]))
+    async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
+        r = await c.post("/api/analyze/youtube", files={"file": ("t.mp4", p.read_bytes(), "video/mp4")}, data={"hint": hint})
+    assert r.status_code == 200, r.text
+    return r.json()["youtube"]["suggestions"]
+
+
+@respx.mock
+async def test_the_model_can_tick_made_for_kids_and_ai_content(clip):
+    verdict = json.dumps({"for_kids": True, "kids_confidence": "high", "kids_reason": "cartoon bear singing a nursery rhyme",
+                          "ai_generated": True, "ai_confidence": "medium", "ai_reason": "smooth, surreal motion"})
+    s = await analyse(clip, verdict)
+    assert s["made_for_kids"]["value"] is True and "nursery rhyme" in s["made_for_kids"]["reason"]
+    assert s["ai_generated"]["value"] is True and "surreal" in s["ai_generated"]["reason"]
+
+
+@respx.mock
+async def test_a_low_confidence_guess_does_not_tick_anything(clip):
+    verdict = json.dumps({"for_kids": True, "kids_confidence": "low", "ai_generated": True, "ai_confidence": "low"})
+    s = await analyse(clip, verdict)
+    assert s["made_for_kids"]["value"] is False and "tick it yourself" in s["made_for_kids"]["reason"]
+    assert s["ai_generated"]["value"] is False and "No sign of AI" in s["ai_generated"]["reason"]
+
+
+@respx.mock
+async def test_the_context_note_and_file_labels_count_even_when_the_model_says_nothing(clip, tmp_path):
+    s = await analyse(clip, NO_VERDICT, hint="Made with Sora for kids")
+    assert s["ai_generated"]["value"] and "context note" in s["ai_generated"]["reason"] and s["made_for_kids"]["value"]
+    labelled = tmp_path / "labelled.mp4"
+    labelled.write_bytes(clip.read_bytes() + b"<Iptc4xmpExt:DigitalSourceType>trainedAlgorithmicMedia</Iptc4xmpExt:DigitalSourceType>")
+    s = await analyse(clip, NO_VERDICT, path=labelled)
+    assert s["ai_generated"]["value"] and "metadata says it was made by an AI model" in s["ai_generated"]["reason"]
+    tagged = tmp_path / "tagged.mp4"
+    subprocess.run(["ffmpeg", "-y", "-i", str(clip), "-c", "copy", "-metadata", "comment=Created with Runway Gen-3", str(tagged)], check=True, capture_output=True)
+    s = await analyse(clip, NO_VERDICT, path=tagged)
+    assert s["ai_generated"]["value"] and "runway" in s["ai_generated"]["reason"].lower()

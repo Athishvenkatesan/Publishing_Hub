@@ -7,7 +7,8 @@ from fastapi import FastAPI
 
 import models  # noqa: F401  (register tables)
 from db import Base, engine
-from routes import accounts, analyze, facebook, posts, youtube
+import yt_thumbnail
+from routes import accounts, analyze, facebook, posts, thumbnails, yt_channels, yt_manager, yt_studio, youtube
 
 
 class JsonFormatter(logging.Formatter):
@@ -29,6 +30,7 @@ async def lifespan(_):
             await conn.exec_driver_sql("ALTER TABLE publication ADD COLUMN title VARCHAR(120) DEFAULT ''")
         if "visibility" not in cols:
             await conn.exec_driver_sql("ALTER TABLE publication ADD COLUMN visibility VARCHAR(20) DEFAULT ''")
+    yt_thumbnail.resume()
     yield
 
 
@@ -38,6 +40,10 @@ app.include_router(posts.router)
 app.include_router(analyze.router)
 app.include_router(facebook.router)
 app.include_router(youtube.router)
+app.include_router(thumbnails.router)
+app.include_router(yt_studio.router)
+app.include_router(yt_manager.router)
+app.include_router(yt_channels.router)
 
 
 @app.get("/healthz")

@@ -6,3 +6,5 @@ __pycache__/
 .venv/
 dist/
 youtube_token.json
+youtube_tokens/
+youtube_accounts.json

@@ -104,7 +104,8 @@ Open `backend/.env` and set `ZERNIO_API_KEY`. Get the key from the Zernio dashbo
 | `PUBLIC_BASE_URL` | (empty) | Not used by the current flow. |
 | `META_ACCESS_TOKEN` | (empty) | Meta Graph API user token for the Facebook screen. |
 | `META_GRAPH_VERSION` | `v21.0` | Graph API version. |
-| `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | (empty) | Your Google OAuth client, for the YouTube screen. |
+| `YOUTUBE_ACCOUNTS` | (empty) | Comma-separated keys of the YouTube accounts, e.g. `first,second`. |
+| `YOUTUBE_<KEY>_LABEL` / `_CLIENT_ID` / `_CLIENT_SECRET` | (empty) | One set per account: its name on screen and its own Google OAuth client. See `.env.example`. |
 | `THREADS_ACCESS_TOKEN` | (empty) | Optional. Threads has its own token; a Facebook token does not work for Threads. |
 
 You can also override the AI settings in `.env`: `OLLAMA_URL`, `VISION_MODEL`, `TEXT_MODEL`, `ANALYZE_FRAMES` (default 6) and `MAX_VIDEO_MB` (default 300).
@@ -150,13 +151,25 @@ Open **http://localhost:3100/#/meta**. It uses a Meta user token from `backend/.
 - **Tokens expire:** a token from the Graph API Explorer lasts about 1 hour. When it expires the screen says so. Generate a new one, replace the value in `.env`, and restart the backend.
 - **Not wired yet:** Instagram and WhatsApp through Meta are checked but cannot send from this screen.
 
-## YouTube screen (your own Google app)
+## YouTube screen (your own Google apps, several accounts)
 
 Open **http://localhost:3100/#/youtube**. It signs in with your Google OAuth client (`YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET` in `backend/.env`) and uploads straight to your channel.
 
 - **Google setup (once):** in Google Cloud, enable **YouTube Data API v3**. In **Credentials**, edit the OAuth client and add `http://localhost:8100/api/youtube/callback` under **Authorized redirect URIs**, and `http://localhost:3100` under **Authorized JavaScript origins**. On the **OAuth consent screen**, add your Google account under **Test users**.
+- **Several accounts:** each account has its own Google OAuth client and its own sign-in, listed in `backend/.env` (add a key to `YOUTUBE_ACCOUNTS` plus its `YOUTUBE_<KEY>_LABEL`, `_CLIENT_ID` and `_CLIENT_SECRET`). The screen shows a switcher; uploads, thumbnails, the history Action menu and Studio all work on the account you pick, and every history row shows which account it belongs to. A client of type **Desktop app** needs no redirect address; a **Web application** client needs `http://localhost:8100/api/youtube/callback` added under Authorized redirect URIs. Each account's sign-in is saved in `backend/youtube_tokens/<key>.json` (git-ignored). The older single `YOUTUBE_CLIENT_ID`/`YOUTUBE_CLIENT_SECRET` pair still works as one account called `main`.
 - **Connect:** press **Connect YouTube**, sign in, and allow upload access. The refresh token is saved in `backend/youtube_token.json` (git-ignored).
 - **Upload:** title, description, tags, visibility, then **Publish now** or **Schedule**. A scheduled video uploads as private and YouTube makes it public at the set time.
+- **AI details (same idea as the Instagram + YouTube screen):** choose a video, and the local model watches it and writes 3 title options, a structured description (summary, key points, call to action, hashtags), up to 15 tags, a suggested category with a reason, 2 thumbnail ideas, and whether it posts as a Short. Everything is editable. Needs Ollama running (`brew services start ollama`).
+- **Advanced options (collapsed):** category, video language, license, made for kids, AI-generated content disclosure, allow embedding, show view and like counts, notify subscribers, and a custom thumbnail (JPG or PNG up to 2 MB; the channel must be phone-verified). A thumbnail problem is shown as a warning and never cancels the upload.
+- **Thumbnail maker:** after the analysis, the local model picks the best frames and writes headlines, and the app builds three 1280x720 thumbnails from your real video (a vertical video sits on a blurred copy of itself). You can pick another frame, edit the headline (English or Arabic), choose Green strip, Dark overlay or No text, and add the DEWA logo. A "how it will look" card shows it beside the title. It works without the AI too (frames ordered by sharpness, no headline). The chosen thumbnail is added after YouTube finishes processing the video, which Shorts need. If it cannot be added, the history row says so and the upload is unaffected. **YouTube only allows custom thumbnails on phone-verified channels.** The screen checks this: on an unverified channel it shows a warning with a verify link and does not send the thumbnail by default (you can still download the JPG and set it in YouTube Studio later).
+- **AI ticks the two advanced boxes, and suggests channels:** after the analysis, **Made for kids** and **Contains AI-generated or altered content** are ticked automatically when there is a reason, and the reason is shown under the box (the Advanced section opens itself). The AI-content box is ticked if the file's own metadata or tags show an AI label or tool (for example C2PA, `trainedAlgorithmicMedia`, Sora, Veo, Runway), if your context note says so, or if the vision model thinks it looks AI-generated with medium or high confidence. The kids box is ticked if your note mentions children, or the vision model judges it made for children (children merely appearing does not count). Both lean towards ticking, because leaving them off by mistake is the risky error, and no sign found does not prove a video is not AI. You can always change them, and the AI never overrides a box you already changed. The AI also **suggests channels** from each channel's name, description, keywords and kids setting: a kids video goes to kids channels, any other video stays off them.
+- **Channel dropdown:** the **Post to** control is a dropdown with a tick box per channel (name, handle, AI suggests, Kids channel, Not verified badges), a Connect button next to signed-out ones, **+ Add another channel** (opens the add-account panel) and Manage accounts. Selected channels also show as chips. A warning appears if the video is made for kids but a selected channel is not a kids channel, or the other way round.
+- **Post to several accounts at once:** when two or more accounts are signed in, the publish step shows a **Post to** list. Tick as many as you want and press one button: the same video, title, description, tags, advanced options, thumbnail and schedule go to every ticked account **in parallel**, each with its own sign-in, so a scheduled video goes public at the same moment everywhere. Each account gets its own history row (rows from one submission share a group). If one account fails, the others still go out and the message lists who succeeded and who failed. Accounts that share a Google app also share that Google project's quota. Each channel needs its own phone verification for custom thumbnails.
+- **Connect is checked first:** pressing Connect asks Google whether it will accept the sign-in. If not (for example a Web-type client that does not list the redirect address), you stay in the app and see exactly what to fix, instead of landing on Google's error page.
+- **Accounts manager** (`#/youtube/accounts`, or Manage accounts on the YouTube screen): add an account by pasting a Google client ID and secret (saved only in `backend/youtube_accounts.json`, git-ignored, mode 600, and never sent back to the browser), or add another channel on a Google app you already added. Each account card shows whether it is connected and a live **checklist**: Google app saved, Google accepts the sign-in, signed in, channel found, channel phone-verified, permission to edit and delete videos, permission to read reports and the YouTube Analytics API. Each to-do has the button that fixes it. A step-by-step guide for Google Cloud sits beside the list with copy buttons for the redirect address and origin. Accounts set in `.env` are shown read-only.
+- **Studio management** (`#/youtube/studio`, or the Studio management button on the channel card): for the chosen account. **Overview** (channel profile, totals, last-28-day numbers, feature status, shortcuts into YouTube Studio), **Content** (every video with visibility, schedule, length, views, likes, comments, search, filter and CSV), **Reports** (views, watch time, net subscribers, likes, comments, shares and average view duration against the previous period, one metric over time, top videos, traffic sources, countries, devices, age and gender, each with a CSV; period presets and print/PDF), **Playlists**, and **Access** (the permissions this app holds, read live from Google, with buttons to add the reports or manage-videos permission, what YouTube does not share, and YouTube's channel roles). Reports need the YouTube Analytics API enabled in the Google project and the reports permission.
+- **Action column:** each row in the YouTube history has a three-dot menu: Open on YouTube, Copy link, Edit title/description/tags, Reschedule and Cancel schedule (scheduled videos only), Set visibility (Public, Unlisted, Private), Remove from this list (the video on YouTube is untouched), and Delete from YouTube (permanent, confirmed in the side panel). Each edit costs 50 YouTube quota units.
+- **Fonts:** thumbnails use Figtree and Noto Sans Arabic from `backend/assets/fonts` (SIL Open Font License).
 - **Limits:** a Google project in Testing mode signs you out after 7 days. A new project's uploads may stay private until it passes YouTube's audit; the history says so when that happens.
 
 ## API
@@ -177,7 +190,23 @@ All routes are under `/api`.
 | `GET` | `/facebook/posts` | Facebook history, refreshed from Meta |
 | `GET` | `/youtube/status` | Is the Google app set, is a channel connected |
 | `GET` | `/youtube/connect` | Google sign-in link |
+| `POST` | `/analyze/youtube` | Upload a video, get the full YouTube package (titles, description, tags, category, thumbnail ideas) |
+| `GET` | `/youtube/manager/accounts` | Accounts with status (no secrets), the setup guide |
+| `POST` | `/youtube/manager/accounts` | Add an account (client ID and secret, or reuse another account's Google app) |
+| `PATCH` / `DELETE` | `/youtube/manager/accounts/{key}` | Rename or remove an account added on screen |
+| `GET` | `/youtube/manager/accounts/{key}/check` | Checklist of what works and what is missing |
+| `GET` | `/youtube/studio/{overview,videos,playlists,access,reports}` | Studio data for the chosen account (`?account=`) |
+| `GET` | `/youtube/studio/{videos,reports}.csv` | CSV downloads |
+| `POST` | `/thumbnails/candidates` | Three thumbnail options from a video (AI-ranked frames and headlines) |
+| `POST` | `/thumbnails/render` | Re-render one candidate with a new headline, style or logo (returns a JPEG) |
+| `GET` | `/youtube/channels/profiles` | Name, handle, description, kids and verified status of each signed-in channel |
+| `POST` | `/youtube/channels/suggest` | Which channels fit a video (AI, with a word-match fallback) |
+| `POST` | `/youtube/posts/multi` | Upload the same video to several accounts at once (`accounts` repeated) |
 | `POST` | `/youtube/posts` | Upload a video to your channel, now or scheduled |
+| `GET` | `/youtube/posts/{id}/details` | Current title, description, tags, visibility of an upload |
+| `PATCH` | `/youtube/posts/{id}` | Edit details, change visibility, reschedule or cancel the schedule |
+| `DELETE` | `/youtube/posts/{id}` | Delete the video on YouTube and remove the row |
+| `DELETE` | `/youtube/posts/{id}/local` | Remove the row from the list only |
 | `GET` | `/youtube/posts` | YouTube history, refreshed from YouTube |
 
 Outside `/api`: `GET /healthz` (alive) and `GET /readyz` (ready).
