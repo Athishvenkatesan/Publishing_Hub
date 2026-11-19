@@ -41,7 +41,18 @@ async def _get(path: str, token: str | None = None, **params) -> dict:
     return r.json()
 
 
-def _capabilities(granted: set[str], pages: list[dict]) -> list[dict]:
+async def threads_status() -> dict | None:
+    """Threads uses its own token and host. None when no Threads token is set."""
+    if not settings.threads_access_token:
+        return None
+    async with httpx.AsyncClient(timeout=30) as c:
+        r = await c.get("https://graph.threads.net/v1.0/me", params={"fields": "id,username", "access_token": settings.threads_access_token})
+    if r.status_code >= 400:
+        return {"ok": False, "error": (r.json().get("error", {}) or {}).get("message", "Threads rejected the token.")}
+    return {"ok": True, **r.json()}
+
+
+def _capabilities(granted: set[str], pages: list[dict], threads: dict | None = None) -> list[dict]:
     can_post = [p for p in pages if "CREATE_CONTENT" in p["tasks"]]
     ig = [p for p in pages if p.get("instagram")]
 
@@ -55,7 +66,11 @@ def _capabilities(granted: set[str], pages: list[dict]) -> list[dict]:
         row("instagram_video", "Publish video to Instagram",
             "instagram_content_publish" in granted and bool(ig),
             "Ready." if "instagram_content_publish" in granted and ig
-            else "Needs instagram_content_publish and an Instagram professional account linked to a Page."),
+            else "Needs instagram_basic and instagram_content_publish, and an Instagram professional account linked to the Page. None is visible to this token."),
+        row("threads_video", "Publish video to Threads", bool(threads and threads.get("ok")),
+            f"Threads token works for @{threads['username']}." if threads and threads.get("ok")
+            else (f"Threads rejected the token: {threads['error']}" if threads
+                  else "Needs a Threads token (not a Facebook token) with threads_basic and threads_content_publish. Set THREADS_ACCESS_TOKEN.")),
         row("whatsapp_message", "Send WhatsApp messages",
             {"whatsapp_business_messaging", "whatsapp_business_management"} <= granted,
             "Permissions granted. Sending also needs a WhatsApp Business number, which this check cannot see." if {"whatsapp_business_messaging", "whatsapp_business_management"} <= granted
@@ -71,15 +86,19 @@ async def check() -> dict:
     raw = (await _get("me/accounts", fields="id,name,category,tasks,instagram_business_account{id,username}", limit=100)).get("data", [])
     pages = [{"id": p["id"], "name": p["name"], "category": p.get("category", ""), "tasks": p.get("tasks", []),
               "instagram": p.get("instagram_business_account")} for p in raw]  # page tokens never leave the server
-    return {"user": me, "permissions": sorted(granted), "pages": pages, "capabilities": _capabilities(granted, pages)}
+    threads = await threads_status()
+    return {"user": me, "permissions": sorted(granted), "pages": pages, "threads": threads,
+            "capabilities": _capabilities(granted, pages, threads)}
 
 
 async def page_access(page_id: str) -> dict:
-    """Name and Page access token (needed to post as the Page)."""
-    d = await _get(page_id, fields="name,access_token")
-    if not d.get("access_token"):
+    """Name and Page access token (needed to post as the Page). Read from the user's Page list,
+    which works with pages_show_list alone."""
+    pages = (await _get("me/accounts", fields="id,name,access_token", limit=100)).get("data", [])
+    page = next((p for p in pages if p["id"] == page_id), None)
+    if not page or not page.get("access_token"):
         raise MetaError("This token cannot post as that Page (no Page access).", 403)
-    return d
+    return page
 
 
 async def publish_video(page_id: str, token: str, path: str, filename: str, ctype: str, title: str,
@@ -96,6 +115,35 @@ async def publish_video(page_id: str, token: str, path: str, filename: str, ctyp
     if not vid:
         raise MetaError("Meta did not return a video id.", 502)
     return str(vid)
+
+
+async def publish_photo(page_id: str, token: str, path: str, filename: str, ctype: str, caption: str,
+                        scheduled_ts: int | None) -> dict:
+    """Post one image to a Page. Returns {"id": photo id, "post_id": feed post id or None}."""
+    data = {"caption": caption, "access_token": token}
+    if scheduled_ts:
+        data.update({"published": "false", "scheduled_publish_time": str(scheduled_ts), "unpublished_content_type": "SCHEDULED"})
+    with open(path, "rb") as f:
+        async with httpx.AsyncClient(timeout=300) as c:
+            r = await c.post(f"{HOST}/{settings.meta_graph_version}/{page_id}/photos",
+                             data=data, files={"source": (filename, f, ctype)})
+    _raise(r)
+    d = r.json()
+    if not d.get("id"):
+        raise MetaError("Meta did not return a photo id.", 502)
+    return {"id": str(d["id"]), "post_id": d.get("post_id")}
+
+
+def photo_url(ids: dict) -> str:
+    return f"https://www.facebook.com/{ids['post_id']}" if ids.get("post_id") else f"https://www.facebook.com/photo?fbid={ids['id']}"
+
+
+async def photo_link(page_token: str, photo_id: str) -> str | None:
+    """Link of a photo once it exists (a scheduled photo is not readable until it goes live). None if not readable."""
+    try:
+        return (await _get(photo_id, token=page_token, fields="link")).get("link")
+    except MetaError:
+        return None
 
 
 def map_video(v: dict) -> tuple[str, str | None, str | None]:

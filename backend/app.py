@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 import models  # noqa: F401  (register tables)
 from db import Base, engine
-from routes import accounts, analyze, facebook, posts
+from routes import accounts, analyze, facebook, posts, youtube
 
 
 class JsonFormatter(logging.Formatter):
@@ -27,6 +27,8 @@ async def lifespan(_):
         cols = [r[1] for r in (await conn.exec_driver_sql("PRAGMA table_info(publication)")).fetchall()]
         if "title" not in cols:  # POC-only migration for databases created before titles existed
             await conn.exec_driver_sql("ALTER TABLE publication ADD COLUMN title VARCHAR(120) DEFAULT ''")
+        if "visibility" not in cols:
+            await conn.exec_driver_sql("ALTER TABLE publication ADD COLUMN visibility VARCHAR(20) DEFAULT ''")
     yield
 
 
@@ -35,6 +37,7 @@ app.include_router(accounts.router)
 app.include_router(posts.router)
 app.include_router(analyze.router)
 app.include_router(facebook.router)
+app.include_router(youtube.router)
 
 
 @app.get("/healthz")

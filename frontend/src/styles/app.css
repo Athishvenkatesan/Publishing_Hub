@@ -93,3 +93,17 @@ button, input, textarea, select { font-family: inherit; }
 .cap { display: flex; flex-direction: column; gap: 4px; padding: var(--spacing-3); border: 1px solid var(--color-border-emphasized, #d5dbe0); border-radius: 10px; }
 .cap--ok { border-color: var(--color-accent); background: var(--color-accent-muted, #e3f3ef); }
 .history .acc, .step .acc { margin-top: var(--spacing-2); }
+.preview--img { object-fit: contain; background: #eef2f3; }
+
+/* native file picker */
+.fp { display: flex; flex-direction: column; gap: var(--spacing-2); position: relative; }
+.fp-label { font-size: 14px; font-weight: 600; }
+.fp-box { display: flex; align-items: center; gap: var(--spacing-3); padding: var(--spacing-3); cursor: pointer;
+  border: 1.5px dashed var(--color-border-emphasized, #b8c2c9); border-radius: 10px; background: var(--color-background-surface, #fff); }
+.fp-box:hover, .fp-box:focus-within, .fp-box--drag { border-color: var(--color-accent); background: var(--color-accent-muted, #e3f3ef); }
+.fp-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.fp-btn { background: var(--color-accent); color: var(--color-on-accent, #fff); font-weight: 600; font-size: 14px; padding: 8px 14px; border-radius: 8px; flex: none; }
+.fp-name { font-size: 14px; color: var(--color-text-secondary, #5b6770); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-clear { align-self: flex-start; background: none; border: 0; padding: 0; color: var(--color-accent); font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: underline; }
+.hero--yt { border-bottom-color: #c4302b; }
+.row-btns { display: flex; gap: var(--spacing-2); flex-wrap: wrap; }

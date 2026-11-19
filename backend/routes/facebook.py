@@ -17,6 +17,9 @@ from db import get_session
 from models import FINAL, Publication
 from routes.posts import ALLOWED, CHUNK, parse_schedule
 
+IMAGES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
+MAX_IMAGE_MB = 10
+
 router = APIRouter(prefix="/api/facebook")
 MIN_AHEAD, MAX_AHEAD = 10 * 60, 75 * 24 * 3600  # Facebook accepts schedules 10 minutes to 75 days ahead
 
@@ -45,14 +48,15 @@ def _schedule_ts(mode: str, scheduled_at: str, tz: str) -> tuple[int | None, dat
     return int(when.timestamp()), when
 
 
-async def _save_upload(file: UploadFile) -> tuple[str, int]:
+async def _save_upload(file: UploadFile, max_mb: int | None = None) -> tuple[str, int]:
+    limit_mb = max_mb or settings.max_video_mb
     size = 0
     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename or "v.mp4").suffix) as tmp:
         while chunk := await file.read(CHUNK):
             size += len(chunk)
-            if size > settings.max_video_mb * 1024 * 1024:
+            if size > limit_mb * 1024 * 1024:
                 Path(tmp.name).unlink(missing_ok=True)
-                raise HTTPException(422, f"Video is over {settings.max_video_mb} MB")
+                raise HTTPException(422, f"File is over {limit_mb} MB")
             tmp.write(chunk)
     return tmp.name, size
 
@@ -87,9 +91,49 @@ async def create(
         Path(path).unlink(missing_ok=True)
 
 
+def _is_photo(row: Publication) -> bool:
+    return Path(row.filename or "").suffix.lower() in IMAGES  # photos and videos share one table; the file type tells them apart
+
+
+@router.post("/photos")
+async def create_photo(
+    file: UploadFile = File(...), page_id: str = Form(...), caption: str = Form(""),
+    mode: str = Form("now"), scheduled_at: str = Form(""), tz: str = Form(settings.default_timezone),
+    session: AsyncSession = Depends(get_session),
+):
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in IMAGES:
+        raise HTTPException(422, "Only JPG or PNG images are accepted")
+    if len(caption) > 63000:
+        raise HTTPException(422, "Caption is too long")
+    ts, when = _schedule_ts(mode, scheduled_at, tz)
+    path, _ = await _save_upload(file, MAX_IMAGE_MB)
+    try:
+        page = await meta.page_access(page_id)
+        ids = await meta.publish_photo(page_id, page["access_token"], path, file.filename, IMAGES[ext], caption, ts)
+        row = Publication(group_id=uuid.uuid4().hex[:12], filename=file.filename, title="", caption=caption,
+                          platform="facebook", account_id=page_id, account_name=page["name"], mode=mode,
+                          scheduled_for=when.astimezone(timezone.utc) if when else None, timezone=tz,
+                          status="SCHEDULED" if when else "PUBLISHED", zernio_post_id=ids["id"],
+                          post_url=None if when else meta.photo_url(ids))
+        session.add(row)
+        await session.commit()
+        return {"items": [row.as_dict()]}
+    except meta.MetaError as e:
+        _fail(e)
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
 async def _refresh(row: Publication):
     try:
         page = await meta.page_access(row.account_id)
+        if _is_photo(row):
+            due = row.scheduled_for and row.scheduled_for.replace(tzinfo=row.scheduled_for.tzinfo or timezone.utc) <= datetime.now(timezone.utc)
+            link = await meta.photo_link(page["access_token"], row.zernio_post_id) if due else None
+            if link:
+                row.status, row.post_url = "PUBLISHED", link
+            return
         row.status, url, err = meta.map_video(await meta.video_state(page["access_token"], row.zernio_post_id))
         row.post_url, row.error = url or row.post_url, err
     except meta.MetaError:

@@ -23,3 +23,10 @@ export const disconnectAccount = (id) => fetch(`/api/accounts/${id}`, { method: 
 export const fbCheck = () => fetch("/api/facebook/check").then(json)
 export const fbHistory = () => fetch("/api/facebook/posts").then(json)
 export const fbPublish = (form) => fetch("/api/facebook/posts", { method: "POST", body: form }).then(json)
+export const fbPublishPhoto = (form) => fetch("/api/facebook/photos", { method: "POST", body: form }).then(json)
+
+export const ytStatus = () => fetch("/api/youtube/status").then(json)
+export const ytConnect = () => fetch("/api/youtube/connect").then(json)
+export const ytDisconnect = () => fetch("/api/youtube/disconnect", { method: "POST" }).then(json)
+export const ytHistory = () => fetch("/api/youtube/posts").then(json)
+export const ytPublish = (form) => fetch("/api/youtube/posts", { method: "POST", body: form }).then(json)

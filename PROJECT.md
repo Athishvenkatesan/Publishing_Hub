@@ -34,8 +34,22 @@ Not scaffolded with `dak init`: this is a single-screen POC. SQLite instead of P
 - Zernio free plan allows 2 connected accounts; connecting a third returns a 402 message that the panel shows.
 
 ## 2026-11-18 - Facebook screen (Meta Graph API)
-- New screen `#/facebook` (nav bar links both screens): checks the Meta token (user, permissions, Pages, what it can do for Facebook / Instagram / WhatsApp), publishes a video to a Facebook Page now or scheduled (10 minutes to 75 days ahead), own history.
+- New screen `#/meta` ("Insta - Face - Threads") (nav bar links both screens): checks the Meta token (user, permissions, Pages, what it can do for Facebook / Instagram / WhatsApp), publishes a video to a Facebook Page now or scheduled (10 minutes to 75 days ahead), own history.
 - Backend: `meta.py` (only Meta-aware module), `routes/facebook.py`, token in `backend/.env` as `META_ACCESS_TOKEN` (never commit). Page tokens stay on the server.
 - Graph API Explorer tokens last about 1 hour. When one expires the screen says so. For longer use, exchange it for a long-lived token (needs the app secret).
 - Facebook rows are kept out of the Instagram + YouTube history. Instagram and WhatsApp via Meta are checked but not wired yet.
 - Tests: 12 pass (4 new, Meta mocked). No real Facebook post has been made.
+
+## 2026-11-19 - Photo posting on the Insta - Face - Threads screen
+- Facebook photo posting: `POST /api/facebook/photos` (JPG or PNG up to 10 MB, caption, now or scheduled). Same `pages_manage_posts` permission as video.
+- Screen renamed "Insta - Face - Threads" (`#/meta`), with a card per channel showing what the token can do. Threads needs its own token (`THREADS_ACCESS_TOKEN`).
+- Page token is now read from the Page list (works without `pages_read_engagement`).
+- Scheduled photos show SCHEDULED until their time passes, then PUBLISHED once Facebook returns the photo link (untested against live Facebook).
+- Tests: 14 pass (Meta mocked). Nothing has been posted to Facebook yet: the token still lacks `pages_manage_posts`.
+
+## 2026-11-19 - YouTube screen (direct Google OAuth)
+- New screen `#/youtube`: Google sign-in (offline access), channel card, resumable upload to YouTube Data API v3, real scheduling (`publishAt`, uploaded private), own history (platform `youtube-direct`, kept out of the Zernio history).
+- Backend: `youtube.py` (only Google-aware module), `routes/youtube.py`; refresh token in `backend/youtube_token.json` (git-ignored). Credentials in `backend/.env`.
+- Replaced the Astryx file button with a native picker (`FilePick.jsx`): the old one opened the dialog by a scripted click that fired twice.
+- Needs in Google Cloud: YouTube Data API v3 enabled, redirect URI `http://localhost:8100/api/youtube/callback`, your account as a test user.
+- Tests: 20 pass (Google mocked). Not yet signed in or uploaded against real Google.

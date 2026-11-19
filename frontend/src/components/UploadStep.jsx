@@ -1,10 +1,10 @@
 import { Banner } from "@astryxdesign/core/Banner"
 import { Button } from "@astryxdesign/core/Button"
-import { FileInput } from "@astryxdesign/core/FileInput"
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl"
 import { Spinner } from "@astryxdesign/core/Spinner"
 import { Text } from "@astryxdesign/core/Text"
 import { TextInput } from "@astryxdesign/core/TextInput"
+import FilePick from "./FilePick.jsx"
 
 const MAX_MB = 300
 
@@ -26,8 +26,8 @@ function Found({ meta, description }) {
 export default function UploadStep({ file, preview, onFile, lang, setLang, hint, setHint, ai, found, onAnalyze }) {
   return (
     <div className="stack">
-      <FileInput label="Video clip" value={file} onChange={(v) => onFile(v)}
-        accept="video/mp4,video/quicktime" maxSize={MAX_MB * 1024 * 1024}
+      <FilePick label="Video clip" value={file} onChange={onFile}
+        accept="video/mp4,video/quicktime" maxMB={MAX_MB}
         description={`MP4 or MOV, up to ${MAX_MB} MB. Vertical 9:16 works best.`} />
       {preview && <video className="preview" src={preview} controls muted />}
       <SegmentedControl layout="fill" label="Language of the text" value={lang} onChange={setLang}>

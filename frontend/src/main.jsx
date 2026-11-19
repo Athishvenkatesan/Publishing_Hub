@@ -9,7 +9,8 @@ import "./styles/app.css"
 import { initTheme } from "./lib/theme.js"
 import Facebook from "./pages/Facebook.jsx"
 import Publish from "./pages/Publish.jsx"
+import YouTube from "./pages/YouTube.jsx"
 
 initTheme()
-const router = createHashRouter([{ path: "/", element: <Publish /> }, { path: "/facebook", element: <Facebook /> }])
+const router = createHashRouter([{ path: "/", element: <Publish /> }, { path: "/meta", element: <Facebook /> }, { path: "/youtube", element: <YouTube /> }])
 createRoot(document.getElementById("root")).render(<StrictMode><RouterProvider router={router} /></StrictMode>)

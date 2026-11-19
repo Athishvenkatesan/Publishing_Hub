@@ -26,6 +26,7 @@ class Publication(Base):
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     timezone: Mapped[str] = mapped_column(String(60), default="UTC")
     status: Mapped[str] = mapped_column(String(20), default="QUEUED", index=True)
+    visibility: Mapped[str] = mapped_column(String(20), default="")  # YouTube: what was asked for
     zernio_post_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     post_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -38,6 +39,6 @@ class Publication(Base):
             "id": self.id, "group_id": self.group_id, "filename": self.filename,
             "title": self.title, "caption": self.caption, "platform": self.platform, "account_name": self.account_name,
             "mode": self.mode, "scheduled_for": iso(self.scheduled_for), "timezone": self.timezone,
-            "status": self.status, "post_url": self.post_url, "error": self.error,
+            "status": self.status, "visibility": self.visibility, "post_url": self.post_url, "error": self.error,
             "created_at": iso(self.created_at),
         }

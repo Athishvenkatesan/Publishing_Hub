@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     max_video_mb: int = 300
     meta_access_token: str = ""   # Graph API user token (short-lived ones last about 1 hour)
     meta_graph_version: str = "v21.0"
+    youtube_client_id: str = ""
+    youtube_client_secret: str = ""
+    youtube_redirect_uri: str = "http://localhost:8100/api/youtube/callback"  # must match the Google console exactly
+    frontend_url: str = "http://localhost:3100"
+    threads_access_token: str = ""  # Threads has its own token (threads_basic, threads_content_publish)
     ollama_url: str = "http://localhost:11434"
     vision_model: str = "qwen2.5vl:7b"   # looks at video frames
     num_ctx: int = 16384   # context window; Ollama defaults to 4096, too small for several video frames

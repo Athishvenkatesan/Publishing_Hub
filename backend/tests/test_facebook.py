@@ -49,7 +49,7 @@ async def test_check_lists_pages_and_capabilities_without_leaking_tokens(client)
     assert r.status_code == 200, r.text
     d = r.json()
     caps = {c["key"]: c["ok"] for c in d["capabilities"]}
-    assert caps == {"facebook_video": True, "instagram_video": False, "whatsapp_message": False}
+    assert caps == {"facebook_video": True, "instagram_video": False, "threads_video": False, "whatsapp_message": False}
     assert d["pages"][0]["name"] == "My Page" and "SECRETPAGETOKEN" not in r.text and "TESTTOKEN" not in r.text
 
 
@@ -62,7 +62,7 @@ async def test_expired_token_gives_a_clear_message(client):
 
 @respx.mock
 async def test_publish_now_then_status_becomes_published(client):
-    respx.get(f"{G}/P1").mock(return_value=httpx.Response(200, json={"name": "My Page", "access_token": "PT"}))
+    respx.get(f"{G}/me/accounts").mock(return_value=httpx.Response(200, json={"data": [{"id": "P1", "name": "My Page", "access_token": "PT"}]}))
     route = respx.post(f"{V}/P1/videos").mock(return_value=httpx.Response(200, json={"id": "V9"}))
     r = await client.post("/api/facebook/posts", files=video(), data={"page_id": "P1", "title": "T", "description": "D", "mode": "now"})
     assert r.status_code == 200, r.text
@@ -77,7 +77,7 @@ async def test_publish_now_then_status_becomes_published(client):
 
 @respx.mock
 async def test_schedule_sends_unix_time_and_rejects_bad_times(client):
-    respx.get(f"{G}/P1").mock(return_value=httpx.Response(200, json={"name": "My Page", "access_token": "PT"}))
+    respx.get(f"{G}/me/accounts").mock(return_value=httpx.Response(200, json={"data": [{"id": "P1", "name": "My Page", "access_token": "PT"}]}))
     route = respx.post(f"{V}/P1/videos").mock(return_value=httpx.Response(200, json={"id": "V10"}))
     soon = (datetime.now(ZoneInfo("Asia/Dubai")) + timedelta(minutes=3)).strftime("%Y-%m-%dT%H:%M")
     r = await client.post("/api/facebook/posts", files=video(), data={"page_id": "P1", "mode": "schedule", "scheduled_at": soon, "tz": "Asia/Dubai"})
@@ -88,3 +88,32 @@ async def test_schedule_sends_unix_time_and_rejects_bad_times(client):
     body = route.calls[0].request.content
     assert b"scheduled_publish_time" in body and b"SCHEDULED" in body
     assert r.json()["items"][0]["status"] == "SCHEDULED"
+
+
+def image(name="pic.jpg"):
+    return {"file": (name, io.BytesIO(b"x" * 1024), "image/jpeg")}
+
+
+@respx.mock
+async def test_photo_publish_now_returns_link(client):
+    respx.get(f"{G}/me/accounts").mock(return_value=httpx.Response(200, json={"data": [{"id": "P1", "name": "My Page", "access_token": "PT"}]}))
+    route = respx.post(f"{G}/P1/photos").mock(return_value=httpx.Response(200, json={"id": "PH1", "post_id": "P1_55"}))
+    r = await client.post("/api/facebook/photos", files=image(), data={"page_id": "P1", "caption": "hello #a", "mode": "now"})
+    assert r.status_code == 200, r.text
+    item = r.json()["items"][0]
+    assert item["status"] == "PUBLISHED" and item["post_url"] == "https://www.facebook.com/P1_55"
+    body = route.calls[0].request.content
+    assert b'name="caption"' in body and b"scheduled_publish_time" not in body
+    assert (await client.get("/api/facebook/posts")).json()["items"][0]["filename"] == "pic.jpg"
+
+
+@respx.mock
+async def test_photo_schedule_and_rejects_non_image(client):
+    respx.get(f"{G}/me/accounts").mock(return_value=httpx.Response(200, json={"data": [{"id": "P1", "name": "My Page", "access_token": "PT"}]}))
+    route = respx.post(f"{G}/P1/photos").mock(return_value=httpx.Response(200, json={"id": "PH2"}))
+    later = (datetime.now(ZoneInfo("Asia/Dubai")) + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M")
+    r = await client.post("/api/facebook/photos", files=image(), data={"page_id": "P1", "mode": "schedule", "scheduled_at": later, "tz": "Asia/Dubai"})
+    assert r.status_code == 200 and r.json()["items"][0]["status"] == "SCHEDULED"
+    assert b"scheduled_publish_time" in route.calls[0].request.content
+    r = await client.post("/api/facebook/photos", files={"file": ("a.mp4", io.BytesIO(b"x"), "video/mp4")}, data={"page_id": "P1"})
+    assert r.status_code == 422

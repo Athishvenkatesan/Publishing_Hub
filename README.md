@@ -104,6 +104,8 @@ Open `backend/.env` and set `ZERNIO_API_KEY`. Get the key from the Zernio dashbo
 | `PUBLIC_BASE_URL` | (empty) | Not used by the current flow. |
 | `META_ACCESS_TOKEN` | (empty) | Meta Graph API user token for the Facebook screen. |
 | `META_GRAPH_VERSION` | `v21.0` | Graph API version. |
+| `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` | (empty) | Your Google OAuth client, for the YouTube screen. |
+| `THREADS_ACCESS_TOKEN` | (empty) | Optional. Threads has its own token; a Facebook token does not work for Threads. |
 
 You can also override the AI settings in `.env`: `OLLAMA_URL`, `VISION_MODEL`, `TEXT_MODEL`, `ANALYZE_FRAMES` (default 6) and `MAX_VIDEO_MB` (default 300).
 
@@ -138,15 +140,24 @@ If the page says "Accounts not loaded" or "Local AI is not ready", the backend o
 
 For YouTube you can choose **Public**, **Unlisted** or **Private**.
 
-## Facebook screen (Meta Graph API)
+## Insta - Face - Threads screen (Meta Graph API)
 
-Open **http://localhost:3100/#/facebook**. It uses a Meta user token from `backend/.env` (`META_ACCESS_TOKEN`), separate from Zernio.
+Open **http://localhost:3100/#/meta**. It uses a Meta user token from `backend/.env` (`META_ACCESS_TOKEN`), separate from Zernio.
 
 - **Token check:** shows who the token belongs to, its permissions, the Pages it reaches, and whether it can publish to Facebook, publish to Instagram, or send WhatsApp messages. Read-only.
 - **Publish:** pick a Page and a video, then publish now or schedule (10 minutes to 75 days ahead). Facebook posts have their own history table.
 - **Needs:** the `pages_manage_posts`, `pages_read_engagement` and `pages_show_list` permissions, and a Page where you can create content.
 - **Tokens expire:** a token from the Graph API Explorer lasts about 1 hour. When it expires the screen says so. Generate a new one, replace the value in `.env`, and restart the backend.
 - **Not wired yet:** Instagram and WhatsApp through Meta are checked but cannot send from this screen.
+
+## YouTube screen (your own Google app)
+
+Open **http://localhost:3100/#/youtube**. It signs in with your Google OAuth client (`YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET` in `backend/.env`) and uploads straight to your channel.
+
+- **Google setup (once):** in Google Cloud, enable **YouTube Data API v3**. In **Credentials**, edit the OAuth client and add `http://localhost:8100/api/youtube/callback` under **Authorized redirect URIs**, and `http://localhost:3100` under **Authorized JavaScript origins**. On the **OAuth consent screen**, add your Google account under **Test users**.
+- **Connect:** press **Connect YouTube**, sign in, and allow upload access. The refresh token is saved in `backend/youtube_token.json` (git-ignored).
+- **Upload:** title, description, tags, visibility, then **Publish now** or **Schedule**. A scheduled video uploads as private and YouTube makes it public at the set time.
+- **Limits:** a Google project in Testing mode signs you out after 7 days. A new project's uploads may stay private until it passes YouTube's audit; the history says so when that happens.
 
 ## API
 
@@ -164,6 +175,10 @@ All routes are under `/api`.
 | `GET` | `/facebook/check` | Check the Meta token: user, permissions, Pages, capabilities |
 | `POST` | `/facebook/posts` | Publish a video to a Facebook Page, now or scheduled |
 | `GET` | `/facebook/posts` | Facebook history, refreshed from Meta |
+| `GET` | `/youtube/status` | Is the Google app set, is a channel connected |
+| `GET` | `/youtube/connect` | Google sign-in link |
+| `POST` | `/youtube/posts` | Upload a video to your channel, now or scheduled |
+| `GET` | `/youtube/posts` | YouTube history, refreshed from YouTube |
 
 Outside `/api`: `GET /healthz` (alive) and `GET /readyz` (ready).
 
