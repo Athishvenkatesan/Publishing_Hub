@@ -13,6 +13,12 @@ import YouTube from "./pages/YouTube.jsx"
 import YouTubeAccounts from "./pages/YouTubeAccounts.jsx"
 import YouTubeStudio from "./pages/YouTubeStudio.jsx"
 
+// Google can send the sign-in answer to this page's own address (when that is the address the client lists, which is a common
+// way to register a Web client). The backend is the one that finishes the sign-in, so hand the answer over and let it bring us back.
+const answer = new URLSearchParams(window.location.search)
+const googleAnswer = window.location.pathname === "/" && answer.has("state") && (answer.has("code") || answer.has("error"))
+if (googleAnswer) window.location.replace("/api/youtube/callback" + window.location.search)
+
 initTheme()
 const router = createHashRouter([{ path: "/", element: <Publish /> }, { path: "/meta", element: <Facebook /> }, { path: "/youtube", element: <YouTube /> }, { path: "/youtube/accounts", element: <YouTubeAccounts /> }, { path: "/youtube/studio", element: <YouTubeStudio /> }])
-createRoot(document.getElementById("root")).render(<StrictMode><RouterProvider router={router} /></StrictMode>)
+if (!googleAnswer) createRoot(document.getElementById("root")).render(<StrictMode><RouterProvider router={router} /></StrictMode>)

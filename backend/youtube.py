@@ -51,8 +51,15 @@ ANALYTICS_SCOPE = "https://www.googleapis.com/auth/yt-analytics.readonly"
 MANAGE_SCOPE = "https://www.googleapis.com/auth/youtube"  # edit and delete videos (youtube.upload is not accepted for those)
 
 
-def auth_url(state: str, extra_scopes: tuple[str, ...] = ()) -> str:
-    q = {"client_id": yt_accounts.current().client_id, "redirect_uri": settings.youtube_redirect_uri, "response_type": "code",
+def redirect_candidates() -> list[str]:
+    """Where Google may send the user back. The backend address is preferred. The web page's own address is the fallback:
+    a client that lists only that one (a common slip: the JavaScript origin pasted into the redirect list) still works,
+    because the page hands the answer to the backend (see main.jsx)."""
+    return list(dict.fromkeys([settings.youtube_redirect_uri, settings.frontend_url]))
+
+
+def auth_url(state: str, extra_scopes: tuple[str, ...] = (), redirect_uri: str | None = None) -> str:
+    q = {"client_id": yt_accounts.current().client_id, "redirect_uri": redirect_uri or settings.youtube_redirect_uri, "response_type": "code",
          "scope": " ".join([SCOPES, *extra_scopes]), "access_type": "offline", "prompt": "consent", "state": state,
          "include_granted_scopes": "true"}
     return f"{AUTH}?{urlencode(q)}"
@@ -73,30 +80,48 @@ def _raise(r: httpx.Response):
     raise YouTubeError(f"Google {r.status_code}: {msg}", r.status_code if r.status_code < 500 else 502)
 
 
+async def _probe(redirect_uri: str) -> str:
+    """What Google says about one redirect address for the current account: "ok", "mismatch", "bad_client", or "unknown" (could not ask)."""
+    try:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as c:
+            r = await c.get(auth_url("setup-check", redirect_uri=redirect_uri), headers={"User-Agent": "Mozilla/5.0"})
+    except httpx.HTTPError:
+        return "unknown"  # offline or Google unreachable: do not block, the real sign-in will say what is wrong
+    t = r.text.lower()
+    if "redirect_uri_mismatch" in t:
+        return "mismatch"
+    if "invalid_client" in t or "deleted_client" in t or "disabled_client" in t:
+        return "bad_client"
+    return "ok"
+
+
+async def accepted_redirect() -> tuple[str, str]:
+    """(address to use, problem). Tries the backend address, then the web page's own address. problem is "" when one works."""
+    tried = []
+    for uri in redirect_candidates():
+        verdict = await _probe(uri)
+        if verdict == "bad_client":
+            return "", f"Google does not recognise this client ID. {yt_accounts.current().fix_hint}"
+        if verdict in ("ok", "unknown"):
+            return uri, ""
+        tried.append(uri)
+    return "", (f"Google does not accept this app's sign-in for this account yet. Its client lists neither {tried[0]} nor {tried[-1]} as a redirect address. "
+                "Fix it one of two ways: (1) in Google Cloud, open APIs & Services, Credentials, this OAuth client, add "
+                f"{tried[0]} under Authorized redirect URIs (not under JavaScript origins), press Save and wait a few minutes; or (2) create a Desktop app OAuth client "
+                "instead, which needs no redirect address, and use its client ID and secret. Then press Check again.")
+
+
 async def check_setup() -> str:
     """Ask Google whether it will accept our sign-in link. "" when fine, else a plain-language problem.
     Reads only Google's sign-in page; nothing is submitted."""
-    try:
-        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as c:
-            r = await c.get(auth_url("setup-check"), headers={"User-Agent": "Mozilla/5.0"})
-    except httpx.HTTPError:
-        return ""  # offline or Google unreachable: do not block, the real sign-in will say what is wrong
-    t = r.text.lower()
-    if "redirect_uri_mismatch" in t:
-        return (f"Google does not accept this app's sign-in for this account yet, because {settings.youtube_redirect_uri} is not in the client's list. "
-                "Fix it one of two ways: (1) in Google Cloud, open APIs & Services, Credentials, this OAuth client, add that address under "
-                "Authorized redirect URIs, press Save and wait a few minutes; or (2) create a Desktop app OAuth client instead, which needs no redirect address, "
-                "and use its client ID and secret. Then press Check again.")
-    if "invalid_client" in t or "deleted_client" in t or "disabled_client" in t:
-        return f"Google does not recognise this client ID. {yt_accounts.current().fix_hint}"
-    return ""
+    return (await accepted_redirect())[1]
 
 
-async def exchange_code(code: str) -> None:
+async def exchange_code(code: str, redirect_uri: str | None = None) -> None:
     acct = yt_accounts.current()
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.post(TOKEN, data={"code": code, "client_id": acct.client_id, "client_secret": acct.client_secret,
-                                      "redirect_uri": settings.youtube_redirect_uri, "grant_type": "authorization_code"})
+                                      "redirect_uri": redirect_uri or settings.youtube_redirect_uri, "grant_type": "authorization_code"})  # must equal the address in the sign-in link
     _raise(r)
     refresh = r.json().get("refresh_token")
     if not refresh:

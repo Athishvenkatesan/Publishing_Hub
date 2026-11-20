@@ -73,14 +73,15 @@ async def status():
 async def connect(reports: bool = False, manage: bool = False, back: str = "", check: bool = False):
     if not youtube.configured():
         raise HTTPException(400, f"Put {yt_accounts.current().env_names or 'YOUTUBE_ACCOUNTS and its client values'} in backend/.env, then restart the backend.")
-    if check:  # ask Google first, so the user is not sent to Google's error page
-        problem = await youtube.check_setup()
+    redirect = settings.youtube_redirect_uri
+    if check:  # ask Google first, so the user is not sent to Google's error page; it also finds which address this client accepts
+        redirect, problem = await youtube.accepted_redirect()
         if problem:
             raise HTTPException(409, problem)
     state = secrets.token_urlsafe(16)
-    _states[state] = {"account": yt_accounts.current().key, "back": back if back in BACK_TO else ""}
+    _states[state] = {"account": yt_accounts.current().key, "back": back if back in BACK_TO else "", "redirect": redirect}
     extra = ((youtube.ANALYTICS_SCOPE,) if reports else ()) + ((youtube.MANAGE_SCOPE,) if manage else ())
-    return {"url": youtube.auth_url(state, extra)}
+    return {"url": youtube.auth_url(state, extra, redirect), "redirect_uri": redirect}
 
 
 @router.get("/callback")
@@ -92,7 +93,7 @@ async def callback(code: str = "", state: str = "", error: str = ""):
     back = f"{settings.frontend_url}/#/youtube" + BACK_TO.get(issued["back"], "")
     sep = "&" if "?" in back else "?"
     try:
-        await youtube.exchange_code(code)
+        await youtube.exchange_code(code, issued.get("redirect"))  # the same address the sign-in link used
     except youtube.YouTubeError as e:
         return RedirectResponse(f"{back}{sep}error={quote(e.message)}")
     return RedirectResponse(f"{back}{sep}connected=1&account={issued['account']}")

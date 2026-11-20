@@ -244,3 +244,47 @@ async def test_connect_with_check_refuses_instead_of_sending_the_user_to_googles
     respx.get(youtube.AUTH).mock(return_value=httpx.Response(200, text="Sign in"))
     ok = await client.get("/api/youtube/connect", params={"check": True})
     assert ok.status_code == 200 and ok.json()["url"].startswith("https://accounts.google.com")
+
+
+def auth_by_address(ok_for: list[str]):
+    """Google's sign-in page: fine for the listed redirect addresses, redirect_uri_mismatch for any other."""
+    def handler(request):
+        uri = request.url.params["redirect_uri"]
+        return httpx.Response(200, text="Sign in" if uri in ok_for else "Error 400: redirect_uri_mismatch")
+    respx.get(youtube.AUTH).mock(side_effect=handler)
+
+
+@respx.mock
+async def test_a_client_that_only_lists_the_web_page_address_still_signs_in(client):
+    """The slip we saw: the client lists http://localhost:3100 (the page) but not the backend address."""
+    auth_by_address([settings.frontend_url])
+    r = await client.get("/api/youtube/connect", params={"check": True})
+    assert r.status_code == 200 and r.json()["redirect_uri"] == settings.frontend_url
+    q = parse_qs(urlparse(r.json()["url"]).query)
+    assert q["redirect_uri"] == [settings.frontend_url]
+    sent = {}
+
+    def token(request):
+        sent.update(dict(x.split("=", 1) for x in request.content.decode().split("&")))
+        return httpx.Response(200, json={"access_token": "AT", "refresh_token": "RT"})
+    respx.post(TOK).mock(side_effect=token)
+    back = await client.get("/api/youtube/callback", params={"code": "abc", "state": q["state"][0]})
+    assert back.headers["location"].endswith("connected=1&account=main") and youtube.connected()
+    from urllib.parse import unquote
+    assert unquote(sent["redirect_uri"]) == settings.frontend_url  # the exchange uses the same address as the link
+
+
+@respx.mock
+async def test_the_backend_address_is_preferred_when_both_work(client):
+    auth_by_address([settings.youtube_redirect_uri, settings.frontend_url])
+    assert (await client.get("/api/youtube/connect", params={"check": True})).json()["redirect_uri"] == settings.youtube_redirect_uri
+
+
+@respx.mock
+async def test_when_neither_address_is_listed_the_message_names_both(client):
+    auth_by_address([])
+    r = await client.get("/api/youtube/connect", params={"check": True})
+    d = r.json()["detail"]
+    assert r.status_code == 409 and settings.youtube_redirect_uri in d and settings.frontend_url in d and "not under JavaScript origins" in d
+    status = (await client.get("/api/youtube/status")).json()
+    assert status["setup_problem"] == d

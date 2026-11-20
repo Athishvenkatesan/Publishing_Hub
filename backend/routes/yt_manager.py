@@ -16,7 +16,7 @@ GUIDE = [
     {"title": "Set up the consent screen", "do": "Google Auth Platform, Audience: choose External. Under Test users, add the Google account that owns the channel.",
      "link": {"label": "Open the consent screen", "url": f"{CONSOLE}/auth/audience"}},
     {"title": "Create the OAuth client", "do": "Credentials, Create credentials, OAuth client ID. Choose Desktop app (needs no redirect address). "
-     "If you choose Web application, add the redirect address shown below.", "link": {"label": "Open Credentials", "url": f"{CONSOLE}/apis/credentials"}},
+     "If you choose Web application, add the redirect address shown below under Authorized redirect URIs (not under JavaScript origins). The web page address also works as a redirect address.", "link": {"label": "Open Credentials", "url": f"{CONSOLE}/apis/credentials"}},
     {"title": "Paste the client ID and secret here", "do": "Use Add account on this screen. The secret stays on this computer and is never shown again."},
     {"title": "Connect and verify", "do": "Press Connect, sign in as the channel owner and allow access. Then verify the channel by phone so custom thumbnails work.",
      "link": {"label": "Verify a channel", "url": youtube.VERIFY_URL}},
