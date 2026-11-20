@@ -7,10 +7,9 @@ import { TZ } from "../lib/time.js"
 import { DESC_MAX, TITLE_MAX, applyAi, defaults, toForm } from "../lib/yt.js"
 import { useThumbs } from "../lib/useThumbs.js"
 import MgrAddPanel from "./MgrAddPanel.jsx"
-import YtAccounts from "./YtAccounts.jsx"
 import YtAdvanced from "./YtAdvanced.jsx"
 import YtChannelPicker from "./YtChannelPicker.jsx"
-import YtConnect from "./YtConnect.jsx"
+import YtOverview from "./YtOverview.jsx"
 import YtPreviewCard from "./YtPreviewCard.jsx"
 import YtReview from "./YtReview.jsx"
 import YtThumbs from "./YtThumbs.jsx"
@@ -24,7 +23,7 @@ const Step = ({ n, title, children, dim }) => (
   </section>
 )
 
-export default function YtStudio({ status, loading, notice, reload, onDone, accounts = [], account = "", onAccount = () => {} }) {
+export default function YtStudio({ status, loading, notice, reload, onDone, accounts = [], account = "" }) {
   const [file, setFile] = useState(null)
   const [thumb, setThumb] = useState(null)
   const [lang, setLang] = useState("en")
@@ -36,21 +35,23 @@ export default function YtStudio({ status, loading, notice, reload, onDone, acco
   const [when, setWhen] = useState(undefined)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
-  const connected = !!status?.connected && !status?.error
+  const connected = accounts.some((a) => a.connected)
   const [targets, setTargets] = useState([])
   const [profiles, setProfiles] = useState({})   // who each signed-in channel is, by account key
-  const [reasons, setReasons] = useState({})     // why the AI suggested a channel, by account key
   const [notes, setNotes] = useState(null)       // the AI's reasons for "made for kids" and "AI content"
   const [adding, setAdding] = useState(false)
   const [accMsg, setAccMsg] = useState(null)
-  const manual = useRef({ targets: false, kids: false, ai: false })  // what the user changed by hand: the AI never overrides it
-  useEffect(() => { if (account) setTargets([account]) }, [account])  // starts as the account shown; tick more to post to several
+  const manual = useRef({ targets: false, kids: false, ai: false, off: new Set() })  // what the user changed by hand: the AI never overrides it (off = channels they unticked)
   const signedIn = accounts.filter((a) => a.connected).map((a) => a.key).join(",")
   useEffect(() => {
     if (!signedIn) { setProfiles({}); return }
     ytChannelProfiles().then((d) => setProfiles(Object.fromEntries(d.profiles.map((p) => [p.key, p])))).catch(() => {})
   }, [signedIn])
-  const setTargetsUser = (t) => { manual.current.targets = true; setTargets(t) }
+  const setTargetsUser = (t) => {
+    manual.current.targets = true
+    targets.filter((k) => !t.includes(k)).forEach((k) => manual.current.off.add(k)); t.forEach((k) => manual.current.off.delete(k))
+    setTargets(t)
+  }
   const setFUser = (nf) => {
     if (nf.madeForKids !== f.madeForKids) manual.current.kids = true
     if (nf.synthetic !== f.synthetic) manual.current.ai = true
@@ -85,14 +86,14 @@ export default function YtStudio({ status, loading, notice, reload, onDone, acco
   async function suggestChannels(description, title, kids) {
     try {
       const r = await ytSuggestChannels({ description, title, kids })
-      setReasons(Object.fromEntries(r.ranked.filter((x) => r.recommended.includes(x.key)).map((x) => [x.key, x.reason])))
       const ok = r.recommended.filter((k) => accounts.some((a) => a.key === k && a.connected))
-      if (ok.length && !manual.current.targets) setTargets(ok)  // preselect the best-fitting channels, unless you already chose
+      // The best-fitting channels come ticked. If you already chose some by hand, they stay, and only the ones you did not untick are added.
+      if (ok.length) setTargets((cur) => manual.current.targets ? [...new Set([...cur, ...ok.filter((k) => !manual.current.off.has(k))])] : ok)
     } catch { /* no suggestion: the channel stays as chosen */ }
   }
 
   function chooseFile(v) {
-    manual.current = { targets: false, kids: false, ai: false }; setNotes(null); setReasons({}); if (account) setTargets([account])
+    manual.current = { targets: targets.length > 0, kids: false, ai: false, off: new Set() }; setNotes(null)  // nothing is ticked for you: the AI ticks after it analyses (channels you already ticked stay)
     setFile(v); setFound(null); setF(defaults()); setAi((a) => ({ ...a, state: a.state === "off" ? "off" : "idle" }))
     th.clear()
     if (v && ai.state !== "off") analyze(v)
@@ -117,7 +118,7 @@ export default function YtStudio({ status, loading, notice, reload, onDone, acco
       if (!ok) { setMsg({ status: "error", title: `Could not upload to ${bad.length === 1 ? "that account" : "any account"}`, description: failed }); return }  // keep the form so it can be retried
       setMsg({ status: bad.length || warn ? "warning" : "success", title: bad.length ? `${verb} ${ok} of ${ok + bad.length} accounts` : `${verb} ${where}`,
         description: [bad.length ? `Failed: ${failed}.` : `YouTube is processing it. Track it in the history below.${after}`, bad.length ? `Done: ${where}.` : "", warn].filter(Boolean).join(" ") })
-      th.clear(); setFile(null); setThumb(null); setFound(null); setF(defaults()); setWhen(undefined)
+      th.clear(); setFile(null); setThumb(null); setFound(null); setF(defaults()); setWhen(undefined); setTargets([]); manual.current.targets = false
       setAi((a) => ({ ...a, state: a.state === "off" ? "off" : "idle" })); onDone()
     } catch (e) { setMsg({ status: "error", title: "Could not upload", description: e.message }) }
     finally { setBusy(false) }
@@ -134,9 +135,8 @@ export default function YtStudio({ status, loading, notice, reload, onDone, acco
       {msg && <Banner status={msg.status} title={msg.title} description={msg.description} isDismissable onDismiss={() => setMsg(null)} />}
       <div className="grid">
         <div className="stack">
-          <Step n="1" title="Your channel">
-            <YtAccounts accounts={accounts} value={account} onChange={onAccount} />
-            <YtConnect status={status} loading={loading} notice={notice} reload={reload} />
+          <Step n="1" title="Your accounts">
+            <YtOverview accounts={accounts} profiles={profiles} notice={notice} loading={loading} account={account} />
           </Step>
           <Step n="2" title="Upload the video" dim={!connected}>
             <YtUpload file={file} preview={preview} onFile={chooseFile} lang={lang} setLang={setLang} hint={hint} setHint={setHint}
@@ -153,7 +153,7 @@ export default function YtStudio({ status, loading, notice, reload, onDone, acco
           <Step n="4" title="Choose the time" dim={!file}>
             <YtWhen f={f} setF={setF} mode={mode} setMode={setMode} when={when} setWhen={setWhen} busy={busy}
               problem={problem} onPublish={publish} summary={summary} count={picked.length}
-              picker={<YtChannelPicker accounts={accounts} profiles={profiles} value={targets} onChange={setTargetsUser} reasons={reasons} kids={file ? f.madeForKids : null}
+              picker={<YtChannelPicker accounts={accounts} profiles={profiles} value={targets} onChange={setTargetsUser} kids={file ? f.madeForKids : null}
                 onAdd={() => setAdding(true)} onConnect={connectFromList} />} />
           </Step>
           {file && <YtPreviewCard thumb={thumbUrl} title={f.title} channel={status?.channel?.title} short={found?.yt?.format === "short"} />}

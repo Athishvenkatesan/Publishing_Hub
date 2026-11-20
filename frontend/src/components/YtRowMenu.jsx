@@ -2,10 +2,12 @@
 import { MoreMenu } from "@astryxdesign/core/MoreMenu"
 
 export default function YtRowMenu({ row, onAct }) {
-  const scheduled = row.status === "SCHEDULED"
+  const rows = row.rows || [row]  // a video posted to several channels is one row: each action asks which channel
+  const scheduled = rows.some((r) => r.status === "SCHEDULED")
+  const link = rows.some((r) => r.post_url)
   const items = [
-    { label: "Open on YouTube", isDisabled: !row.post_url, onClick: () => window.open(row.post_url, "_blank", "noopener") },
-    { label: "Copy link", isDisabled: !row.post_url, onClick: () => onAct("copy", row) },
+    { label: "Open on YouTube", isDisabled: !link, onClick: () => onAct("open", row) },
+    { label: "Copy link", isDisabled: !link, onClick: () => onAct("copy", row) },
     { type: "divider" },
     { label: "Edit title, description, tags", onClick: () => onAct("edit", row) },
     ...(scheduled ? [

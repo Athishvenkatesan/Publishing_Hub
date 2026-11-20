@@ -42,6 +42,13 @@ async def test_list_never_exposes_a_secret_and_marks_env_accounts_read_only(clie
     assert len(d["guide"]) == 6 and d["guide"][0]["link"]["url"].startswith("https://console.cloud.google.com")
 
 
+async def test_guide_tells_people_both_addresses_and_the_email_checks(client):
+    d = (await client.get("/api/youtube/manager/accounts")).json()
+    text = " ".join(g["do"] for g in d["guide"])
+    assert "Authorized JavaScript origins" in text and "Authorized redirect URIs" in text
+    assert "Test users" in text and "User support email" in text and d["js_origin"] != d["redirect_uri"]
+
+
 async def test_add_validates_stores_privately_and_hides_the_secret(client):
     for bad in ({"client_id": "nope"}, {"client_secret": "short"}, {"label": "  "}):
         r = await add(client, **bad)

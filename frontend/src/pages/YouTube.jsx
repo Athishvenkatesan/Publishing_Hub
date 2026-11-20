@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router"
 import { Banner } from "@astryxdesign/core/Banner"
 import { Heading } from "@astryxdesign/core/Heading"
 import { Text } from "@astryxdesign/core/Text"
-import HistoryTable from "../components/HistoryTable.jsx"
+import HistoryTable, { groupRows } from "../components/HistoryTable.jsx"
 import Nav from "../components/Nav.jsx"
+import YtChannelAsk from "../components/YtChannelAsk.jsx"
 import YtEditPanel from "../components/YtEditPanel.jsx"
 import YtRowMenu from "../components/YtRowMenu.jsx"
 import YtStudio from "../components/YtStudio.jsx"
@@ -17,6 +18,8 @@ export default function YouTube() {
   const [items, setItems] = useState([])
   const [panel, setPanel] = useState(null)
   const [note, setNote] = useState(null)
+  const [ask, setAsk] = useState(null)   // an action waiting for a channel to be chosen
+  const groups = useMemo(() => groupRows(items), [items])
   const [accounts, setAccounts] = useState([])
   const [account, setAccount] = useState("")
   const notice = params.get("connected") ? { status: "success", title: "YouTube connected", description: "You can upload now." }
@@ -35,6 +38,8 @@ export default function YouTube() {
   const finished = (text) => { setPanel(null); setNote({ status: "success", title: text }); load() }
   async function act(kind, row) {
     setNote(null)
+    if (row.rows?.length > 1) return setAsk({ kind, row })  // the same video is on several channels: ask which one first
+    if (kind === "open") return window.open(row.post_url, "_blank", "noopener")
     if (["edit", "schedule", "delete"].includes(kind)) return setPanel({ mode: kind, row })
     try {
       if (kind === "copy") { await navigator.clipboard.writeText(row.post_url); return setNote({ status: "success", title: "Link copied." }) }
@@ -51,7 +56,8 @@ export default function YouTube() {
       if (!d) return
       let saved = ""
       try { saved = localStorage.getItem("ytAccount") || "" } catch { /* no storage */ }
-      const wanted = [params.get("account"), saved, d.default].find((k) => k && d.accounts.some((a) => a.key === k))
+      const order = [params.get("account"), saved, d.default]
+      const wanted = order.find((k) => k && d.accounts.some((a) => a.key === k && a.connected)) || order.find((k) => k && d.accounts.some((a) => a.key === k))  // a signed-in account first
       pick(wanted || d.default)
     })
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
@@ -71,12 +77,13 @@ export default function YouTube() {
       </header>
       <div className="page stack">
         <YtStudio status={status} loading={loading} notice={notice} reload={() => { loadStatus(); loadAccounts() }} onDone={load}
-          accounts={accounts} account={account} onAccount={pick} />
+          accounts={accounts} account={account} />
         <section className="history">
           <div className="history-head"><Heading level={3}>YouTube history</Heading><Text size="sm" color="secondary">Updates every 10 seconds.</Text></div>
           {note && <Banner status={note.status} title={note.title} description={note.description} isDismissable onDismiss={() => setNote(null)} />}
-          <HistoryTable items={items} actions={(r) => <YtRowMenu row={r} onAct={act} />} />
+          <HistoryTable items={groups} actions={(r) => <YtRowMenu row={r} onAct={act} />} />
         </section>
+        <YtChannelAsk ask={ask} onClose={() => setAsk(null)} onPick={(r) => { const k = ask.kind; setAsk(null); act(k, r) }} />
         <YtEditPanel panel={panel} onClose={() => setPanel(null)} onDone={finished} />
       </div>
     </>

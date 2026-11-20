@@ -19,8 +19,8 @@ export default function MgrGuide({ guide, redirectUri, origin }) {
       </ol>
       <div className="vals">
         <Text size="sm" weight="semibold">Values Google may ask for</Text>
-        <div className="val"><span className="mono">{redirectUri}</span><button type="button" className="linkbtn" onClick={() => copy(redirectUri)}>Copy for Authorized redirect URIs</button></div>
-        <div className="val"><span className="mono">{origin}</span><button type="button" className="linkbtn" onClick={() => copy(origin)}>Copy (also accepted as a redirect address)</button></div>
+        <div className="val"><div className="val-main"><Text size="sm" weight="semibold">Authorized JavaScript origins</Text><span className="mono">{origin}</span></div><button type="button" className="linkbtn" onClick={() => copy(origin)}>Copy</button></div>
+        <div className="val"><div className="val-main"><Text size="sm" weight="semibold">Authorized redirect URIs</Text><span className="mono">{redirectUri}</span></div><button type="button" className="linkbtn" onClick={() => copy(redirectUri)}>Copy</button></div>
       </div>
     </section>
   )

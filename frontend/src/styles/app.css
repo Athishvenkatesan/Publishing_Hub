@@ -188,7 +188,8 @@ button, input, textarea, select { font-family: inherit; }
 .accts { display: flex; flex-direction: column; gap: var(--spacing-2); }
 .acct { display: flex; justify-content: space-between; align-items: center; gap: var(--spacing-3); padding: 10px 12px; text-align: left; cursor: pointer; font: inherit; color: inherit;
   background: var(--color-background-surface, #fff); border: 1px solid var(--color-border-emphasized, #d5dbe0); border-radius: 10px; }
-.acct:hover { border-color: var(--color-accent); }
+.acct:hover:not(:disabled) { border-color: var(--color-accent); }
+.acct:disabled { opacity: .55; cursor: not-allowed; }
 .acct--on { border-color: var(--color-accent); background: var(--color-accent-muted, #e3f3ef); }
 .acct-label { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; }
 .acct-state { font-size: 12px; color: var(--color-text-secondary, #5b6770); flex: none; }
@@ -207,6 +208,7 @@ button, input, textarea, select { font-family: inherit; }
 .vals { display: flex; flex-direction: column; gap: var(--spacing-2); padding: var(--spacing-3); background: var(--color-accent-muted, #e3f3ef); border-radius: 8px; }
 .val { display: flex; justify-content: space-between; align-items: center; gap: var(--spacing-3); flex-wrap: wrap; }
 .val .mono { word-break: break-all; }
+.val-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 
 /* studio extras */
 .chan { display: flex; gap: var(--spacing-4); align-items: flex-start; }
@@ -247,3 +249,23 @@ button, input, textarea, select { font-family: inherit; }
 .dd-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .dd-badges { display: flex; gap: 6px; flex-wrap: wrap; }
 .dd-foot { display: flex; justify-content: space-between; gap: var(--spacing-3); padding: 10px 8px 4px; margin-top: 4px; border-top: 1px solid var(--color-border, #e3e8ea); }
+/* the date and time boxes shrink to fit a narrow column instead of spilling out of it */
+.dt-fit div { min-width: 0; }
+.dt-fit input { width: 100%; min-width: 0; }
+.counts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-3); }
+.count { display: flex; flex-direction: column; padding: var(--spacing-3); border: 1px solid var(--color-border-emphasized, #d5dbe0); border-radius: 10px; }
+.count b { font-size: 28px; line-height: 1.1; color: var(--color-accent); font-family: var(--font-family-mono, monospace); }
+/* one video on several channels: each channel is one line, the same height in the Account and Status columns so they line up */
+.chan-line { display: flex; align-items: center; min-height: 32px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* two or three option bars (Public / Unlisted / Private, Publish now / Schedule, ...) share the full width, with no empty space */
+[role="radiogroup"]:not(.accts) > [role="radio"] { flex: 1 1 0; justify-content: center; text-align: center; }
+/* two buttons side by side, same width and height */
+.btn-pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: var(--spacing-2); }
+.btn-pair > a { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 40px; box-sizing: border-box; }
+/* the whole "before you connect" note sits inside one warning box */
+.warn-note { display: flex; flex-direction: column; gap: var(--spacing-2); padding: var(--spacing-4); border-radius: 12px; font-size: 14px; line-height: 1.5;
+  background: var(--color-warning-muted, #f8da9d); color: var(--color-text-primary, #1a1a1a); }
+.warn-note p { margin: 0; }
+.warn-note ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: var(--spacing-2); }
+.warn-head { display: flex; align-items: center; gap: var(--spacing-2); color: var(--color-warning, #745b00); font-size: 15px; }
+.warn-icon { width: 20px; height: 20px; border-radius: 50%; background: var(--color-warning, #745b00); color: var(--color-on-warning, #fff); display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex: none; }

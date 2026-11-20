@@ -44,7 +44,7 @@ export default function YouTubeAccounts() {
           {data && <MgrGuide guide={data.guide} redirectUri={data.redirect_uri} origin={data.js_origin} />}
         </div>
       </div>
-      <MgrAddPanel open={panel.open} preset={panel.preset} accounts={accounts} onClose={() => setPanel({ open: false, preset: "" })}
+      <MgrAddPanel open={panel.open} preset={panel.preset} accounts={accounts} origin={data?.js_origin || ""} redirectUri={data?.redirect_uri || ""} onClose={() => setPanel({ open: false, preset: "" })}
         onAdded={(a) => { setPanel({ open: false, preset: "" }); setAdded(a.key); reload() }} />
     </>
   )

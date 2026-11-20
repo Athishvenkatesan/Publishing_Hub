@@ -13,12 +13,12 @@ GUIDE = [
     {"title": "Create a Google Cloud project", "do": "Open Google Cloud, create a project (or pick one), and keep it selected.", "link": {"label": "Open Google Cloud", "url": CONSOLE}},
     {"title": "Turn on the YouTube Data API", "do": "APIs & Services, Library, search YouTube Data API v3, Enable. For reports also enable YouTube Analytics API.",
      "link": {"label": "Open the API library", "url": f"{CONSOLE}/apis/library/youtube.googleapis.com"}},
-    {"title": "Set up the consent screen", "do": "Google Auth Platform, Audience: choose External. Under Test users, add the Google account that owns the channel.",
+    {"title": "Set up the consent screen", "do": "Google Auth Platform, Audience: choose External. Under Test users, add the Gmail that owns the channel. Under Branding, App information, set User support email to that same Gmail.",
      "link": {"label": "Open the consent screen", "url": f"{CONSOLE}/auth/audience"}},
     {"title": "Create the OAuth client", "do": "Credentials, Create credentials, OAuth client ID. Choose Desktop app (needs no redirect address). "
-     "If you choose Web application, add the redirect address shown below under Authorized redirect URIs (not under JavaScript origins). The web page address also works as a redirect address.", "link": {"label": "Open Credentials", "url": f"{CONSOLE}/apis/credentials"}},
+     "If you choose Web application, fill in both boxes with the values shown on the right: the page address under Authorized JavaScript origins, and the redirect address under Authorized redirect URIs. Do not swap them.", "link": {"label": "Open Credentials", "url": f"{CONSOLE}/apis/credentials"}},
     {"title": "Paste the client ID and secret here", "do": "Use Add account on this screen. The secret stays on this computer and is never shown again."},
-    {"title": "Connect and verify", "do": "Press Connect, sign in as the channel owner and allow access. Then verify the channel by phone so custom thumbnails work.",
+    {"title": "Connect and verify", "do": "Be signed in to that Gmail in your browser, press Connect, sign in as the channel owner and allow access. Then verify the channel by phone so custom thumbnails work.",
      "link": {"label": "Verify a channel", "url": youtube.VERIFY_URL}},
 ]
 
@@ -138,7 +138,7 @@ async def check(key: str):
                        problem or f"Redirect address {settings.youtube_redirect_uri} is accepted.",
                        {"kind": "copy", "label": "Copy the redirect address", "value": settings.youtube_redirect_uri} if problem else None))
     if not youtube.connected():
-        items.append(_item("signin", "Signed in", "todo", "Press Connect and sign in as the channel owner.", {"kind": "connect", "label": f"Connect {a.label}", "opts": {}}))
+        items.append(_item("signin", "Signed in", "todo", "Be signed in to this Gmail in your browser, make sure it is under Audience, Test users in Google, and that User support email is the same Gmail. Then press Connect and sign in as the channel owner.", {"kind": "connect", "label": f"Connect {a.label}", "opts": {}}))
         return {"key": key, "items": items}
     items.append(_item("signin", "Signed in", "ok", "A saved sign-in exists for this account."))
     try:

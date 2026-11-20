@@ -12,8 +12,8 @@ export default function FbWhen({ mode, setMode, when, setWhen, note = "Facebook 
         <SegmentedControlItem value="schedule" label="Schedule" />
       </SegmentedControl>
       {mode === "schedule" && (
-        <div>
-          <DateTimeInput label="Date and time" value={when} onChange={setWhen} min={localInZone(new Date(Date.now() + 11 * 60000))} hourFormat="24h" timeIncrement={5} />
+        <div className="dt-fit">
+          <DateTimeInput label="Date and time" width="100%" value={when} onChange={setWhen} min={localInZone(new Date(Date.now() + 11 * 60000))} hourFormat="24h" timeIncrement={5} />
           <Text size="sm" color="secondary">Time zone: {TZ}. {note}</Text>
         </div>
       )}

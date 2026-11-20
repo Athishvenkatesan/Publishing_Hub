@@ -1,4 +1,4 @@
-// "Post to": a dropdown to tick one or several YouTube channels, with the AI's suggestion, a Connect button for signed-out
+// "Post to": a dropdown to tick one or several YouTube channels, a Connect button for signed-out
 // accounts and "Add another channel".
 import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router"
@@ -6,7 +6,7 @@ import { Badge } from "@astryxdesign/core/Badge"
 import { Banner } from "@astryxdesign/core/Banner"
 import { Text } from "@astryxdesign/core/Text"
 
-export default function YtChannelPicker({ accounts, profiles, value, onChange, reasons, onAdd, onConnect, kids = null }) {
+export default function YtChannelPicker({ accounts, profiles, value, onChange, onAdd, onConnect, kids = null }) {
   const [open, setOpen] = useState(false)
   const box = useRef(null)
   useEffect(() => {
@@ -35,7 +35,7 @@ export default function YtChannelPicker({ accounts, profiles, value, onChange, r
         {open && (
           <div className="dd-menu" role="listbox" aria-multiselectable="true" aria-label="YouTube channels">
             {accounts.map((a) => {
-              const p = by(a.key), why = reasons[a.key]
+              const p = by(a.key)
               return (
                 <div key={a.key} className={`dd-row${a.connected ? "" : " dd-row--off"}`} role="option" aria-selected={value.includes(a.key)}>
                   <label className="chk">
@@ -44,11 +44,9 @@ export default function YtChannelPicker({ accounts, profiles, value, onChange, r
                       <b>{name(a)}</b>
                       <Text size="sm" color="secondary">{p ? `${p.handle || a.label} - ${a.label}` : a.label}</Text>
                       <span className="dd-badges">
-                        {why && <Badge variant="info" label="AI suggests" />}
                         {p?.kids_channel && <Badge variant="neutral" label="Kids channel" />}
                         {p && !p.verified && <Badge variant="warning" label="Not verified" />}
                       </span>
-                      {why && <Text size="sm" color="secondary">{why}</Text>}
                     </span>
                   </label>
                   {!a.connected && a.configured && <button type="button" className="linkbtn" onClick={() => onConnect(a.key)}>Connect</button>}

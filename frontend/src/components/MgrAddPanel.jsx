@@ -7,8 +7,9 @@ import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/Segme
 import { Text } from "@astryxdesign/core/Text"
 import { TextInput } from "@astryxdesign/core/TextInput"
 import { mgrAdd } from "../lib/api.js"
+import MgrSetupNotes from "./MgrSetupNotes.jsx"
 
-export default function MgrAddPanel({ open, preset, accounts, onClose, onAdded }) {
+export default function MgrAddPanel({ open, preset, accounts, origin, redirectUri, onClose, onAdded }) {
   const ready = accounts.filter((a) => a.configured)
   const [mode, setMode] = useState("new")
   const [label, setLabel] = useState("")
@@ -56,6 +57,7 @@ export default function MgrAddPanel({ open, preset, accounts, onClose, onAdded }
             <label className="sel-wrap"><span className="fp-label">Client secret</span>
               <input className="sel" type="password" autoComplete="off" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="GOCSPX-..." /></label>
             <Text size="sm" color="secondary">The secret is saved on this computer only. It is never shown again, and it never goes to GitHub.</Text>
+            <MgrSetupNotes origin={origin} redirectUri={redirectUri} email={label.trim()} />
           </>
         ) : (
           <>

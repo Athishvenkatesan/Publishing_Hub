@@ -116,3 +116,29 @@ Not scaffolded with `dak init`: this is a single-screen POC. SQLite instead of P
 - Fix (app side, no Google Cloud change needed): `youtube.accepted_redirect()` probes the backend address, then `settings.frontend_url`, and `/connect` uses the first one Google accepts; the exchange reuses that same address (stored with the sign-in state). `main.jsx` forwards `/?code=&state=` to `/api/youtube/callback`. If neither address is listed the message names both and says "not under JavaScript origins".
 - Checked live: all 4 accounts now get Google's sign-in page; a fake answer to the page address lands back in the app. 75 tests pass. NOT done: a real sign-in for the two accounts (needs their Google logins).
 - Reminder for Google Cloud: a Web client works with either address under Authorized redirect URIs. Test users must include the account that signs in.
+
+## 2026-11-20 - Add-account panel now shows the Google values and the email checks
+- Asked for: when adding a Gmail, show both addresses to register in Google, and warn about the email checks before signing in.
+- Add account panel (`MgrSetupNotes.jsx`, new): copy buttons for Authorized JavaScript origins (`http://localhost:3100`) and Authorized redirect URIs (`http://localhost:8100/api/youtube/callback`), then a warning with three checks using the typed email: signed in to that Gmail in the browser, listed under Audience, Test users, and the same email as User support email.
+- Same wording in the right-hand setup guide (both boxes labelled, copy buttons), in guide steps 3, 4 and 6, and in the "Signed in" checklist item.
+- Honest note: Google does not force the support email to equal the channel email (it must be an email the project owner controls). It is shown as a "keep everything matching" check, not something the app can read or verify; Google offers no API for the test-user list.
+- Checked in the browser (panel and guide render). The backend wording (guide text) needs a backend restart; 76 tests pass; no ESLint config exists in the frontend (pre-existing), the Vite build passes.
+
+## 2026-11-20 - YouTube screen: ticked suggestions, date/time fit, account counts
+- "Post to" list: the "AI suggests" badge and reason line are gone. The AI's channels simply come ticked. If you ticked some yourself while the AI was still working, yours stay and the AI's are added, except channels you unticked (`manual.off` in `YtStudio.jsx`).
+- Date and time boxes (`FbWhen.jsx`, `.dt-fit` in app.css) shrink to fit the narrow right column instead of spilling out of the card.
+- Step 1 is now "Your accounts" (`YtOverview.jsx`): count of accounts and count of channels, plus Manage accounts and Studio management links. The selectable account list and the channel card are removed from this screen (the Studio screen still has its account switcher). Step 2 unlocks when any account is signed in. Connect for a signed-out account is in the Post to list.
+- Removed the "Google redirect address (must be listed in your Google OAuth client)" line by deleting `YtConnect.jsx`, which only this screen used.
+- Checked in the browser with mocked analysis (a suggested channel came ticked, no badge); no upload was pressed. Vite build passes; backend untouched; the frontend has no tests.
+- Follow-up: no channel is ticked by default any more. "Post to" starts as "Choose channels"; after the local AI analyses the video it ticks the channels that fit. Channels you ticked before choosing the file stay; the list clears after a successful upload. Checked with a mocked analysis (empty before, the suggested channel ticked after).
+
+## 2026-11-20 - YouTube history: one row per video, ask which channel
+- A video posted to several channels at once (same `group_id`) is now one row. The Account and Status columns list each channel on its own line (`groupRows` in `HistoryTable.jsx`); a thumbnail or upload error is prefixed with the channel it belongs to. Other screens (Zernio, Facebook) are unchanged.
+- The three-dot menu on a combined row opens a slide-in "Which channel?" panel (`YtChannelAsk.jsx`) before doing anything, including Open and Copy link. Channels that cannot take the action are greyed with a reason (no link yet, not scheduled). A single-channel row acts straight away. "Open on YouTube" now goes through the same path as the other items.
+- UI only, no backend change. Checked in the browser with the real history: the 09:30 and 16:06 pairs each show as one row; Copy link on a pair asks, then copies; a single row copies without asking. Edit, visibility, reschedule, delete were not run (they change real videos).
+
+## 2026-11-20 - UI polish: full-width option bars, aligned buttons, one warning box
+- Option bars (Public/Unlisted/Private, Publish now/Schedule, A new Google app/One I already added, and the others): every option now takes an equal share of the full width, with no empty space (one CSS rule on `[role=radiogroup]`, app.css).
+- Step 1 buttons (Manage accounts, Studio management) sit side by side, same width and height (`.btn-pair`).
+- "Before you press Connect" is one warning box that holds the title, the intro, the three checks and the closing line (`.warn-note` in `MgrSetupNotes.jsx`), instead of a banner with plain text under it.
+- UI only. Measured in the browser: bars fill the width (equal buttons, 2px padding), the two buttons are 169x40 each, and the add-account panel shows the single warning box.
