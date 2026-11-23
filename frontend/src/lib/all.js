@@ -1,4 +1,4 @@
-// The three platforms on the combined screen (YouTube, LinkedIn, X): what each one is called, which calls it uses, and how its form is built.
+// The platforms on the combined screen (YouTube, LinkedIn, X, Meta): what each one is called, which calls it uses, and how its form is built.
 import LiReview from "../components/LiReview.jsx"
 import XReview from "../components/XReview.jsx"
 import YtReview from "../components/YtReview.jsx"
@@ -7,6 +7,7 @@ import * as li from "./li.js"
 import { liAccounts, liHistory, liProfiles, liPublishMulti } from "./liApi.js"
 import { TZ } from "./time.js"
 import * as x from "./x.js"
+import { META } from "./metaAll.js"
 import { xAccounts, xHistory, xProfiles, xPublishMulti } from "./xApi.js"
 import * as yt from "./yt.js"
 
@@ -26,11 +27,14 @@ export const PLATFORMS = [
     defaults: li.defaults, applyAi: li.applyAi, toForm: li.toForm,
     problem: (f) => (!f.text.trim() ? "Write the LinkedIn text." : f.text.length > li.TEXT_MAX ? `The LinkedIn post is over ${li.TEXT_MAX} characters.` : ""),
     note: "Posts right away (LinkedIn has no scheduling for apps)." },
-  { kind: "x", name: "X", unit: "Profile", accountsRoute: "/x/accounts", screen: "/x", Review: XReview,
+  { kind: "x", name: "X", unit: "Profile", soon: true,  // shown, but posting to X is switched off for now
+    accountsRoute: "/x/accounts", screen: "/x", Review: XReview,
     api: { accounts: xAccounts, profiles: xProfiles, history: xHistory, publish: xPublishMulti },
     defaults: x.defaults, applyAi: x.applyAi, toForm: x.toForm, problem: x.problem,
-    note: "Posts right away and uses X credits (about $0.015 a post)." },
+    note: "Coming soon. X is shown here, but posting to X is switched off for now." },
+  META,
 ]
+export const aiKey = (p) => p.aiKey || p.kind  // which part of the AI answer is this platform's draft
 
 export async function allAnalyze(file, lang, hint) {
   const f = new FormData()
@@ -41,6 +45,6 @@ export async function allAnalyze(file, lang, hint) {
   return body
 }
 
-// Each platform's own AI draft: { youtube, linkedin, x } -> its form.
-export const draftsToForms = (d, cur) => Object.fromEntries(PLATFORMS.map((p) => [p.kind, d[p.kind] ? p.applyAi(cur[p.kind], d[p.kind]) : cur[p.kind]]))
+// Each platform's own AI draft: { youtube, linkedin, x, facebook } -> its form.
+export const draftsToForms = (d, cur) => Object.fromEntries(PLATFORMS.map((p) => [p.kind, d[aiKey(p)] ? p.applyAi(cur[p.kind], d[aiKey(p)]) : cur[p.kind]]))
 export const freshForms = () => Object.fromEntries(PLATFORMS.map((p) => [p.kind, p.defaults()]))

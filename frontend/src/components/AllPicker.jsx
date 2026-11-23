@@ -3,16 +3,18 @@ import { useNavigate } from "react-router"
 import { Text } from "@astryxdesign/core/Text"
 import YtChannelPicker from "./YtChannelPicker.jsx"
 
-export default function AllPicker({ p, accounts, profiles, enabled, onToggle, value, onChange }) {
+export default function AllPicker({ p, accounts, profiles, enabled, onToggle, value, onChange, why = "" }) {
   const navigate = useNavigate()
   const any = accounts.some((a) => a.connected)
   return (
     <div className="stack">
       <label className="chk">
-        <input type="checkbox" checked={enabled} disabled={!any} onChange={(e) => onToggle(e.target.checked)} />
-        <span className="dd-text"><b>{p.name}</b><Text size="sm" color="secondary">{any ? p.note : `Connect ${p.name} first.`}</Text></span>
+        <input type="checkbox" checked={enabled && !p.soon} disabled={!any || !!p.soon} onChange={(e) => onToggle(e.target.checked)} />
+        <span className="dd-text"><b>{p.name}</b><Text size="sm" color="secondary">{p.soon ? p.note : any ? p.note : `Connect ${p.name} first.`}</Text>
+          {why && enabled && <Text size="sm">{why}</Text>}
+          {why && !enabled && <Text size="sm" color="secondary">{why}</Text>}</span>
       </label>
-      {enabled && (
+      {enabled && !p.soon && (
         <YtChannelPicker accounts={accounts} profiles={profiles} value={value} onChange={onChange} noun={p.unit.toLowerCase() === "channel" ? "channel" : "account"} manageTo={p.accountsRoute}
           onAdd={() => navigate(p.accountsRoute)} onConnect={(key) => navigate(`${p.accountsRoute}?account=${key}`)} />
       )}

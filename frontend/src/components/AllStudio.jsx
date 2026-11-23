@@ -5,8 +5,11 @@ import { Button } from "@astryxdesign/core/Button"
 import { SegmentedControl, SegmentedControlItem } from "@astryxdesign/core/SegmentedControl"
 import { Text } from "@astryxdesign/core/Text"
 import { analyzeStatus } from "../lib/api.js"
-import { PLATFORMS, allAnalyze, draftsToForms, freshForms } from "../lib/all.js"
+import { PLATFORMS, aiKey, allAnalyze, draftsToForms, freshForms } from "../lib/all.js"
 import { publishAll, retryOnly, summarise } from "../lib/allPublish.js"
+import { autoPlan } from "../lib/allAuto.js"
+import { metaAuto } from "../lib/metaAll.js"
+import { ytSuggestChannels } from "../lib/api.js"
 import { soleAccount } from "../lib/li.js"
 import AllPicker from "./AllPicker.jsx"
 import LiUpload from "./LiUpload.jsx"
@@ -24,7 +27,8 @@ export default function AllStudio({ data, onDone }) {
   const [tab, setTab] = useState("")
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
-  const byHand = useRef({})                     // platforms whose ticks the user changed: never tick those again behind their back
+  const [why, setWhy] = useState({})          // platform kind -> why the AI ticked or switched it
+  const byHand = useRef({ platforms: {}, accounts: {} })  // what the user changed by hand: the AI never overrides it
   const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file])
   useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview])
   useEffect(() => { analyzeStatus().then((s) => !s.ready && setAi({ state: "off", reason: `${s.reason} The posts still work: write them yourself.` })).catch(() => {}) }, [])
@@ -33,10 +37,10 @@ export default function AllStudio({ data, onDone }) {
   const soles = JSON.stringify(Object.fromEntries(PLATFORMS.map((p) => [p.kind, soleAccount(by[p.kind].accounts)])))
   useEffect(() => {  // a platform with a single signed-in account has that account ticked for you
     const s = JSON.parse(soles)
-    setTargets((cur) => ({ ...cur, ...Object.fromEntries(PLATFORMS.filter((p) => s[p.kind] && !byHand.current[p.kind]).map((p) => [p.kind, [s[p.kind]]])) }))
+    setTargets((cur) => ({ ...cur, ...Object.fromEntries(PLATFORMS.filter((p) => s[p.kind] && !byHand.current.accounts[p.kind]).map((p) => [p.kind, [s[p.kind]]])) }))
   }, [soles])
 
-  const on = PLATFORMS.filter((p) => by[p.kind].accounts.some((a) => a.connected) && !off.includes(p.kind))
+  const on = PLATFORMS.filter((p) => !p.soon && by[p.kind].accounts.some((a) => a.connected) && !off.includes(p.kind))
   const picked = (p) => (targets[p.kind] || []).filter((k) => by[p.kind].accounts.some((a) => a.key === k && a.connected))
   const active = on.find((p) => p.kind === tab) || on[0]
 
@@ -45,15 +49,25 @@ export default function AllStudio({ data, onDone }) {
     try {
       const d = await allAnalyze(v, lang, hint)
       setForms((cur) => draftsToForms(d, cur)); setFound({ meta: d.meta, description: d.description, drafts: d }); setAi({ state: "done", reason: "" })
+      autoPick(d)
     } catch (e) { setAi({ state: "error", reason: e.message }) }
   }
+  // After the AI has watched the video: tick the platforms and channels that fit it (never over the person's own choices).
+  async function autoPick(d) {
+    const kids = d.youtube?.suggestions?.made_for_kids?.value ?? false
+    let channels = null
+    try { channels = await ytSuggestChannels({ description: d.description, title: d.youtube?.title || "", kids }) } catch { /* no suggestion: the channels stay as they are */ }
+    const plan = autoPlan({ kids, channels, youtubeAccounts: by.youtube.accounts, metaTargets: metaAuto(by.meta.accounts), hand: byHand.current })
+    setOff((cur) => [...new Set([...cur, ...plan.off])]); setTargets((cur) => ({ ...cur, ...plan.targets })); setWhy(plan.why)
+  }
   function chooseFile(v) {
+    byHand.current = { platforms: {}, accounts: {} }; setOff([]); setWhy({}); setTargets(JSON.parse(soles) ? Object.fromEntries(Object.entries(JSON.parse(soles)).filter(([, k]) => k).map(([p, k]) => [p, [k]])) : {})
     setFile(v); setFound(null); setForms(freshForms()); setMsg(null); setAi((a) => ({ ...a, state: a.state === "off" ? "off" : "idle" }))
     if (v && ai.state !== "off") analyze(v)
   }
 
   const problem = !file ? "Choose a video first." : !on.length ? "Switch on at least one platform." : ai.state === "working" ? "The AI is still analysing."
-    : on.map((p) => (!picked(p).length ? `Choose a ${p.name} account.` : p.problem(forms[p.kind]))).find(Boolean) || ""
+    : on.map((p) => (!picked(p).length ? `Choose a ${p.name} account.` : p.problem(forms[p.kind], picked(p)))).find(Boolean) || ""
 
   async function publish() {
     setBusy(true); setMsg(null)
@@ -74,7 +88,7 @@ export default function AllStudio({ data, onDone }) {
         <div className="stack">
           <Step n="2" title="Upload the video" dim={!on.length && !file}>
             <LiUpload file={file} preview={preview} onFile={chooseFile} lang={lang} setLang={setLang} hint={hint} setHint={setHint} ai={ai} found={found} onAnalyze={() => analyze()}
-              accept="video/mp4" description="MP4, up to 300 MB (LinkedIn takes MP4 only)." working="the YouTube, LinkedIn and X posts" note="writes all three posts" />
+              accept="video/mp4" description="MP4, up to 300 MB (LinkedIn takes MP4 only)." working="the YouTube, LinkedIn, X and Meta posts" note="writes all four posts" />
           </Step>
         </div>
         <Step n="3" title="Check each post" dim={!file}>
@@ -84,7 +98,7 @@ export default function AllStudio({ data, onDone }) {
                 {on.map((p) => <SegmentedControlItem key={p.kind} value={p.kind} label={p.name} />)}
               </SegmentedControl>
               <active.Review key={active.kind} f={forms[active.kind]} setF={(f) => setForms({ ...forms, [active.kind]: f })}
-                {...(active.kind === "youtube" ? { yt: found?.drafts.youtube } : { draft: found?.drafts[active.kind] })} aiDone={ai.state === "done"} />
+                {...(active.kind === "youtube" ? { yt: found?.drafts.youtube } : { draft: found?.drafts[aiKey(active)] })} aiDone={ai.state === "done"} />
             </div>
           ) : <Text color="secondary">Switch on a platform to write its post.</Text>}
         </Step>
@@ -93,8 +107,8 @@ export default function AllStudio({ data, onDone }) {
             <div className="stack">
               {PLATFORMS.map((p) => (
                 <AllPicker key={p.kind} p={p} accounts={by[p.kind].accounts} profiles={by[p.kind].profiles} enabled={on.includes(p)}
-                  onToggle={(v) => setOff((cur) => (v ? cur.filter((k) => k !== p.kind) : [...cur, p.kind]))}
-                  value={targets[p.kind] || []} onChange={(t) => { byHand.current[p.kind] = true; setTargets({ ...targets, [p.kind]: t }) }} />
+                  why={why[p.kind]} onToggle={(v) => { byHand.current.platforms[p.kind] = true; setOff((cur) => (v ? cur.filter((k) => k !== p.kind) : [...cur, p.kind])) }}
+                  value={targets[p.kind] || []} onChange={(t) => { byHand.current.accounts[p.kind] = true; setTargets({ ...targets, [p.kind]: t }) }} />
               ))}
               <Button size="lg" label={`Post to ${on.length} ${on.length === 1 ? "platform" : "platforms"}`} isLoading={busy} isDisabled={!!problem || busy} onClick={publish} />
               {problem ? <Text size="sm" color="secondary">{problem}</Text> : <Text size="sm" weight="semibold">Posts now, one platform after another. If one fails, the others still go out.</Text>}

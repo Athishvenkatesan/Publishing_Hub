@@ -203,3 +203,31 @@ async def classify(frames: list[str], meta: dict, hint: str) -> dict | None:
         return None
     return {"for_kids": bool(d.get("for_kids")), "kids_confidence": str(d.get("kids_confidence", "low")).lower(), "kids_reason": str(d.get("kids_reason", ""))[:160],
             "ai_generated": bool(d.get("ai_generated")), "ai_confidence": str(d.get("ai_confidence", "low")).lower(), "ai_reason": str(d.get("ai_reason", ""))[:160]}
+
+
+async def write_meta(description: str, meta: dict, lang: str, hint: str) -> dict:
+    """A Facebook Page post for a video: three title options, the post text with hashtags, and a short caption for Instagram and Threads."""
+    prompt = f"""You write Facebook Page posts for a government communications team. Tone: clear, warm, plain words, no clickbait, at most two emojis.
+Video description: {description}
+{('User context: ' + hint) if hint else ''}
+Language: {LANG.get(lang, 'English')}.
+Return ONLY JSON with this exact shape:
+{{"titles": ["<3 different video titles, each max 80 chars>"],
+ "body": "<1 or 2 short paragraphs about the video, max 700 chars, no hashtags>",
+ "hashtags": ["<3 to 6 relevant single-word or camel-case tags without #>"],
+ "caption": "<one short caption for Instagram and Threads, max 300 chars, no hashtags>"}}
+Only use what the description says. Do not invent facts, names, numbers or dates."""
+    raw = await _chat(settings.text_model, [{"role": "user", "content": prompt}], json_mode=True, timeout=180)
+    try:
+        d = json.loads(raw)
+        titles = [str(t).strip()[:100] for t in d["titles"] if str(t).strip()][:3]
+        body = str(d["body"]).strip()
+        if not titles or not body:
+            raise ValueError("empty")
+        tags = _clean_tags(d.get("hashtags"), 6)
+        line = " ".join(f"#{t}" for t in tags)
+        caption = re.sub(r"\s*#\w+", "", str(d.get("caption") or body)).strip()[:300]  # the model sometimes adds tags anyway; they go on once, below
+        return {"titles": titles, "title": titles[0], "body": body, "hashtags": tags,
+                "text": "\n\n".join(x for x in [body, line] if x)[:5000], "caption": "\n\n".join(x for x in [caption, line] if x)}
+    except (KeyError, ValueError, TypeError):
+        raise AnalyzerError("The local model returned an unusable answer. Try Regenerate.")

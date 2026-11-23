@@ -175,17 +175,19 @@ async def test_analyze_x_returns_three_short_posts(clip):
 
 
 @respx.mock
-async def test_analyze_all_watches_once_and_writes_all_three_posts(clip):
+async def test_analyze_all_watches_once_and_writes_all_four_posts(clip):
     yt = json.dumps({"titles": ["One", "Two"], "summary": "S.", "key_points": ["K"], "call_to_action": "Go.", "hashtags": ["Test"],
                      "tags": ["a"], "category": "Education", "category_reason": "r", "thumbnail_ideas": ["Big"]})
     li = json.dumps({"hooks": ["H1", "H2", "H3"], "body": "Body.", "hashtags": ["Water"], "title": "Water"})
     xp = json.dumps({"posts": ["X one #A", "X two #B", "X three #C"]})
-    route = respx.post(OLLAMA).mock(side_effect=by_model([reply("A test pattern."), reply(NO_VERDICT)], [reply(yt), reply(li), reply(xp)]))
+    fb = json.dumps({"titles": ["FB one"], "body": "FB body.", "hashtags": ["Water"], "caption": "Short."})
+    route = respx.post(OLLAMA).mock(side_effect=by_model([reply("A test pattern."), reply(NO_VERDICT)], [reply(yt), reply(li), reply(xp), reply(fb)]))
     async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
         r = await c.post("/api/analyze/all", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")}, data={"lang": "en"})
     assert r.status_code == 200, r.text
     d = r.json()
     assert d["youtube"]["title"] == "One" and d["linkedin"]["title"] == "Water" and d["x"]["text"] == "X one #A"
+    assert d["facebook"]["title"] == "FB one" and d["facebook"]["caption"] == "Short.\n\n#Water"
     vision_calls = [c for c in route.calls if json.loads(c.request.content)["model"] == "qwen2.5vl:7b"]
     assert len(vision_calls) == 2  # describe + classify, once for the whole video
 
@@ -196,3 +198,24 @@ async def test_analyze_all_reports_a_missing_model(clip):
     async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
         r = await c.post("/api/analyze/all", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")})
     assert r.status_code == 503
+
+
+@respx.mock
+async def test_analyze_meta_returns_titles_post_text_and_caption(clip):
+    pkg = json.dumps({"titles": ["Save water", "Every drop", ""], "body": "A short clip about saving water.",
+                      "hashtags": ["#Water", "Dubai", "water"], "caption": "Every drop counts. #Water"})
+    respx.post(OLLAMA).mock(side_effect=by_model([reply("A test pattern.")], [reply(pkg)]))
+    async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
+        r = await c.post("/api/analyze/meta", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")}, data={"lang": "en"})
+    assert r.status_code == 200, r.text
+    fb = r.json()["facebook"]
+    assert fb["titles"] == ["Save water", "Every drop"] and fb["title"] == "Save water" and fb["hashtags"] == ["Water", "Dubai"]
+    assert fb["text"] == "A short clip about saving water.\n\n#Water #Dubai" and fb["caption"] == "Every drop counts.\n\n#Water #Dubai"
+
+
+@respx.mock
+async def test_analyze_meta_bad_answer_asks_to_regenerate(clip):
+    respx.post(OLLAMA).mock(side_effect=by_model([reply("A test pattern.")], [reply(json.dumps({"titles": [], "body": ""}))]))
+    async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
+        r = await c.post("/api/analyze/meta", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")}, data={"lang": "en"})
+    assert r.status_code == 503 and "Regenerate" in r.json()["detail"]

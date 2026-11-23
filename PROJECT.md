@@ -175,3 +175,35 @@ Not scaffolded with `dak init`: this is a single-screen POC. SQLite instead of P
 - Frontend: `lib/all.js` (platform registry), `lib/allPublish.js` (pure posting logic: partial failure keeps the others, only failed platforms are retried), `AllChannels`, `AllPicker`, `AllStudio`, `Step`, `pages/AllPlatforms.jsx`. `Step.jsx` is new; the older screens still have their own copies of the same card (not touched).
 - Limits: YouTube here posts now and public (thumbnail, category and scheduling stay on the YouTube screen); LinkedIn and X post now (no scheduling in their APIs); X costs credits. Facebook/Meta pages are not in the list.
 - Tests: 119 backend pass, 9 frontend unit tests pass, build passes. A server-render smoke check with fake accounts rendered the page and studio. NOT checked in a real browser (the Chrome extension was not connected and the Playwright browser was busy), and no real post was made. The running backend must be restarted to get `/api/analyze/all`.
+- 2026-11-23, combined screen (`#/all`): the AI now ticks for you after it has watched the video (`lib/allAuto.js`, 4 unit tests). YouTube channels come from the existing channel suggestion (kids videos go to kids channels); a made-for-kids video switches LinkedIn off, with the reason shown under it. A platform with one signed-in account still has that account ticked. Anything the person changed by hand is never overridden, and a new video resets the ticks. X is shown but switched off ("coming soon": greyed checkbox, no picker, no review tab, left out of the Post button); flip `soon` in `lib/all.js` to enable it. Checked in the browser with mocked answers; frontend tests 13 pass; no real posts. The AI still writes an X draft on that screen (a little wasted time) until X is enabled.
+- 2026-11-23: the `#/meta` screen is now named "insta - FB - Threads" in the nav bar, its page header and the README (older entries above keep the old name).
+- 2026-11-23: renamed again: the `#/meta` screen is now just "Meta" (nav bar, page header, README).
+
+### 2026-11-23 - Meta token not picked up
+- Root cause of the 401 on `/api/facebook/check`: the backend reads `backend/.env` only at start, so it kept the old expired token after a new one was pasted. `meta.py` now re-reads `META_ACCESS_TOKEN` / `THREADS_ACCESS_TOKEN` from `.env` on each call, so a new token works without a restart. Facebook check also accepts `publish_video` (not only `pages_manage_posts`).
+
+### 2026-11-23 - Meta screen works like YouTube and LinkedIn
+- `#/meta` now: 1) token and Pages (counts, platforms ready, details folded), 2) upload -> local AI writes the post (`POST /api/analyze/meta`: 3 title options, post text with hashtags, a short caption for Instagram/Threads), 3) check the post, 4) the Pages the token can post to are ticked after the analysis (never over a manual choice), now or schedule, one Publish button (`POST /api/facebook/posts/multi`, one Page failing does not stop the others). Instagram and Threads are shown but locked with the reason from the token check. Photo posting moved to a folding section; old `FbPublish.jsx` removed.
+- Verified: real local analysis in the browser (title options, text, auto-tick). NOT verified: a real Facebook publish (no real post made).
+
+### 2026-11-23 - Facebook "(#100) No permission to publish the video"
+- Root cause: the Meta token has no `pages_manage_posts` (Meta debug_token confirms; `publish_video` is not granted for the Page either). My earlier change that accepted `publish_video` was wrong and is reverted. The screen now warns and keeps Publish off until the token has it; a #100/#200/#10 permission error explains which permission to add.
+- Also: video upload switched to Facebook resumable upload (start/transfer 4 MB/finish) after a one-piece upload got 413 Too Large.
+- Instagram: no Instagram professional account is linked to the Page or the business, and `instagram_content_publish` is not granted. Threads: the Facebook token is rejected by graph.threads.net ("Cannot parse access token"); a separate Threads token is needed.
+
+### 2026-11-23 - Instagram from the Meta screen
+- New token has `pages_manage_posts` and `instagram_content_publish`; Instagram @dgmgenmedia is linked to the Gen Media AI Page. `meta_ig.py` posts a video as a Reel (container with upload_type=resumable, upload to rupload.facebook.com, wait for FINISHED, media_publish, read the permalink). `/api/facebook/posts/multi` takes `pages` and `instagram` ids plus an Instagram `caption`; Instagram cannot be scheduled. Rows use platform `instagram-meta` (kept off the Zernio history). The AI ticks Facebook and Instagram after the analysis.
+- Verified: screen in the browser with a real local analysis (both ticked, caption filled, publish request blocked). NOT verified: a real Facebook or Instagram post. Threads still needs its own token.
+
+### 2026-11-23 - Threads from the Meta screen, token out of the logs
+- Why Business Suite can post to Facebook + Instagram + Threads and this app could not: Business Suite is Meta's own tool. Apps must use the Threads API (graph.threads.net) with a separate Threads token, and Threads only takes a public video link. No publish request from the app had reached the backend; Facebook and Instagram were ready on the token.
+- Built: `meta_threads.py` (container from a public `video_url`, wait for FINISHED, threads_publish, permalink). `/api/facebook/posts/multi` takes `threads=true` and uses the Instagram copy's `media_url` (or the Facebook video `source`). Screen: Threads tick box, enabled when `THREADS_ACCESS_TOKEN` works; caption max 500 for Threads; no scheduling.
+- Security: httpx logged full URLs including the Meta token. httpx logging is now WARNING; the old log was emptied.
+- Verified: tests (130 backend, 17 frontend). NOT verified: any real Facebook, Instagram or Threads post; Threads has no token yet.
+
+### 2026-11-23 - Meta on the All platforms screen
+- `#/all` (nav renamed "All platforms") now has Meta as a fourth platform (`lib/metaAll.js`): accounts from the Meta token check (Facebook Page, Instagram @dgmgenmedia, Threads), a Meta review tab (title, post text, Instagram/Threads caption), every ready Meta account ticked after the analysis (`autoPlan` metaTargets, never over a manual choice), posts now through `/api/facebook/posts/multi`. `/api/analyze/all` also writes the Meta post. History lines say which Meta platform each one is.
+- Verified in the browser with a real local analysis (YouTube + Meta tabs, Facebook and Instagram ticked, Post enabled; publish requests blocked). Real FB + IG posting was done by the user from the Meta screen (sample-5s.mp4, 21:05, both Published).
+
+### 2026-11-23 - Photo post removed from the Meta screen
+- "Post a photo to Facebook instead" removed at the user's request (`FbPhoto.jsx`, `FbPagePick.jsx`, `fbPublishPhoto`, the `.fold` styles). The backend `/api/facebook/photos` route is kept so old photo rows in the history still refresh.

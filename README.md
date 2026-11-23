@@ -141,13 +141,17 @@ If the page says "Accounts not loaded" or "Local AI is not ready", the backend o
 
 For YouTube you can choose **Public**, **Unlisted** or **Private**.
 
-## Insta - Face - Threads screen (Meta Graph API)
+## All platforms screen
 
-Open **http://localhost:3100/#/meta**. It uses a Meta user token from `backend/.env` (`META_ACCESS_TOKEN`), separate from Zernio.
+Open **http://localhost:3100/#/all** (nav: All platforms). One video, one AI run (`POST /api/analyze/all` writes the YouTube, LinkedIn, X and Meta posts), a review tab per platform, and one Post button. Meta (Facebook Pages, the linked Instagram account and Threads) is the fourth platform: its accounts come from the Meta token check, every ready one is ticked after the analysis, and it always posts now. X is shown but switched off for now.
+
+## Meta screen (Meta Graph API)
+
+Open **http://localhost:3100/#/meta**. It uses a Meta user token from `backend/.env` (`META_ACCESS_TOKEN`), separate from Zernio. A new token pasted into `.env` is picked up without restarting the backend.
 
 - **Token check:** shows who the token belongs to, its permissions, the Pages it reaches, and whether it can publish to Facebook, publish to Instagram, or send WhatsApp messages. Read-only.
-- **Publish:** pick a Page and a video, then publish now or schedule (10 minutes to 75 days ahead). Facebook posts have their own history table.
-- **Needs:** the `pages_manage_posts`, `pages_read_engagement` and `pages_show_list` permissions, and a Page where you can create content.
+- **Publish (same flow as YouTube and LinkedIn):** upload a video, the local AI writes title options, the post text with hashtags and a short caption (`POST /api/analyze/meta`). Check the text; the Pages the token can post to are ticked after the analysis. Publish now or schedule (10 minutes to 75 days ahead) with one button (`POST /api/facebook/posts/multi`). Instagram (the professional account linked to the Page) gets the same video as a Reel through the Graph API resumable upload (needs `instagram_basic` + `instagram_content_publish`; posts right away, no scheduling). Threads (`meta_threads.py`, graph.threads.net) posts the same video once `THREADS_ACCESS_TOKEN` is set: Threads only fetches videos from a public link, so it uses the Instagram copy's `media_url` (or the Facebook copy's `source`), which means Instagram or Facebook must be ticked too. Meta Business Suite can post to all three because it is Meta's own tool; outside apps need the Threads API and its own token. Facebook posts have their own history table.
+- **Needs:** `pages_manage_posts` (`publish_video` alone is not enough), `pages_read_engagement` and `pages_show_list` permissions, and a Page where you can create content.
 - **Tokens expire:** a token from the Graph API Explorer lasts about 1 hour. When it expires the screen says so. Generate a new one, replace the value in `.env`, and restart the backend.
 - **Not wired yet:** Instagram and WhatsApp through Meta are checked but cannot send from this screen.
 

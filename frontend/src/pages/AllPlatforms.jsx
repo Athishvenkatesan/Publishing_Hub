@@ -10,7 +10,7 @@ import { PLATFORMS } from "../lib/all.js"
 
 const empty = () => PLATFORMS.map((p) => ({ p, accounts: [], profiles: {} }))
 
-// YouTube + LinkedIn + X on one screen: every account in one list, one video posted to the platforms you switch on, one history.
+// YouTube + LinkedIn + X + Meta on one screen: every account in one list, one video posted to the platforms you switch on, one history.
 export default function AllPlatforms() {
   const [data, setData] = useState(empty)
   const [loading, setLoading] = useState(true)
@@ -35,16 +35,16 @@ export default function AllPlatforms() {
       <Nav />
       <header className="hero hero--li">
         <div className="hero-copy">
-          <span className="eyebrow eyebrow--light">YouTube + LinkedIn + X</span>
-          <h1 className="hero-title">Drop a video. <em>AI writes three posts.</em> One click to all.</h1>
-          <p className="hero-sub">See every channel and profile in one place, review each post, and publish to the platforms you choose.</p>
+          <span className="eyebrow eyebrow--light">All platforms</span>
+          <h1 className="hero-title">Drop a video. <em>AI writes every post.</em> One click to all.</h1>
+          <p className="hero-sub">YouTube, LinkedIn, X, Facebook, Instagram and Threads in one place. Review each post, and publish to the platforms you choose.</p>
         </div>
       </header>
       <div className="page stack">
         <Step n="1" title="All your channels and profiles"><AllChannels data={data} loading={loading} /></Step>
         <AllStudio data={data} onDone={load} />
         <section className="history">
-          <div className="history-head"><Heading level={3}>History</Heading><Text size="sm" color="secondary">Posts made from this app on YouTube, LinkedIn and X. Edit or delete on each platform's own screen.</Text></div>
+          <div className="history-head"><Heading level={3}>History</Heading><Text size="sm" color="secondary">Posts made from this app on YouTube, LinkedIn, X and Meta. Edit or delete on each platform's own screen.</Text></div>
           <HistoryTable items={groups} />
         </section>
       </div>

@@ -19,6 +19,7 @@ class JsonFormatter(logging.Formatter):
 h = logging.StreamHandler()
 h.setFormatter(JsonFormatter())
 logging.basicConfig(level=logging.INFO, handlers=[h])
+logging.getLogger("httpx").setLevel(logging.WARNING)  # httpx logs full URLs, and Meta and Threads tokens ride in the query string
 
 
 @asynccontextmanager

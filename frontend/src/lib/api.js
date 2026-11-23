@@ -23,7 +23,12 @@ export const disconnectAccount = (id) => fetch(`/api/accounts/${id}`, { method: 
 export const fbCheck = () => fetch("/api/facebook/check").then(json)
 export const fbHistory = () => fetch("/api/facebook/posts").then(json)
 export const fbPublish = (form) => fetch("/api/facebook/posts", { method: "POST", body: form }).then(json)
-export const fbPublishPhoto = (form) => fetch("/api/facebook/photos", { method: "POST", body: form }).then(json)
+export const fbPublishMulti = (form) => fetch("/api/facebook/posts/multi", { method: "POST", body: form }).then(json)
+export function fbAnalyze(file, lang, hint) {
+  const f = new FormData()
+  f.append("file", file); f.append("lang", lang); f.append("hint", hint)
+  return fetch("/api/analyze/meta", { method: "POST", body: f }).then(json)
+}
 
 // The chosen YouTube account rides along on every YouTube call as ?account=key.
 let ytAccount = ""

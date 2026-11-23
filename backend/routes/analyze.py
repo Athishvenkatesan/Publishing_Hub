@@ -89,9 +89,19 @@ async def analyze_x(file: UploadFile = File(...), lang: str = Form("en"), hint: 
         raise HTTPException(503, str(e))
 
 
+@router.post("/analyze/meta")
+async def analyze_meta(file: UploadFile = File(...), lang: str = Form("en"), hint: str = Form("")):
+    """Same watch step, then a Facebook Page post: title options, the post text with hashtags, and a short caption."""
+    meta, description, *_ = await _watch(file, hint)
+    try:
+        return {"meta": meta, "description": description, "facebook": await analyzer.write_meta(description, meta, lang, hint)}
+    except analyzer.AnalyzerError as e:
+        raise HTTPException(503, str(e))
+
+
 @router.post("/analyze/all")
 async def analyze_all(file: UploadFile = File(...), lang: str = Form("en"), hint: str = Form("")):
-    """One watch step for the combined screen, then the YouTube, LinkedIn and X posts (the video is watched once, not three times)."""
+    """One watch step for the combined screen, then the YouTube, LinkedIn, X and Meta posts (the video is watched once, not four times)."""
     meta, description, shots, markers = await _watch(file, hint)
     try:
         looks = await analyzer.classify(shots, meta, hint)
@@ -99,6 +109,7 @@ async def analyze_all(file: UploadFile = File(...), lang: str = Form("en"), hint
         return {"meta": meta, "description": description,
                 "youtube": {**yt, "suggestions": ai_signals.video_signals(markers, looks, hint)},
                 "linkedin": await analyzer.write_linkedin(description, meta, lang, hint),
-                "x": await analyzer.write_x(description, meta, lang, hint)}
+                "x": await analyzer.write_x(description, meta, lang, hint),
+                "facebook": await analyzer.write_meta(description, meta, lang, hint)}
     except analyzer.AnalyzerError as e:
         raise HTTPException(503, str(e))

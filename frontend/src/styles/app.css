@@ -276,3 +276,7 @@ button, input, textarea, select { font-family: inherit; }
 .pv--linkedin .pv-media video, .pv--x .pv-media video { width: 100%; display: block; }
 .token-box { display: flex; flex-direction: column; gap: var(--spacing-3); padding: var(--spacing-4); border: 1px dashed var(--color-border-emphasized, #b8c2c9); border-radius: 10px; }
 .hero--x { border-bottom-color: #536471; }
+
+.counts--4 { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1000px) { .counts--4 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .counts--4 { grid-template-columns: 1fr; } }

@@ -18,7 +18,8 @@ export function groupRows(items) {
   return [...by.values()]
 }
 const lines = (r) => r.rows || [r]
-const name = (x) => (x.platform === "youtube-direct" ? `YouTube - ${x.account_name}` : x.platform === "linkedin" ? `LinkedIn - ${x.account_name}` : `${x.platform} - @${x.account_name}`)
+const META_ROWS = ["facebook", "instagram-meta", "threads"]  // one video on several Meta platforms: say which platform each line is
+const name = (x) => (x.platform === "youtube-direct" ? `YouTube - ${x.account_name}` : x.platform === "linkedin" ? `LinkedIn - ${x.account_name}` : x.platform === "facebook" ? `Facebook - ${x.account_name}` : x.platform === "instagram-meta" ? `Instagram - @${x.account_name}` : x.platform === "threads" ? `Threads - @${x.account_name}` : `${x.platform} - @${x.account_name}`)
 
 const base = [
   { key: "when", header: "When", width: pixel(150),
@@ -28,7 +29,7 @@ const base = [
       {r.caption && <div><Text size="sm" color="secondary">{r.caption.slice(0, 70)}</Text></div>}</div> },
   { key: "account", header: "Account", width: pixel(230),
     renderCell: (r) => lines(r).length > 1
-      ? <div>{lines(r).map((x) => <div key={x.id} className="chan-line" title={x.account_name}><Text size="sm">{x.account_name}</Text></div>)}</div>
+      ? <div>{lines(r).map((x) => <div key={x.id} className="chan-line" title={x.account_name}><Text size="sm">{META_ROWS.includes(x.platform) ? name(x) : x.account_name}</Text></div>)}</div>
       : <Text size="sm">{name(r)}</Text> },
   { key: "status", header: "Status", width: pixel(230),
     renderCell: (r) => <div>{lines(r).map((x) => { const s = STATUS[x.status] || STATUS.SCHEDULED
