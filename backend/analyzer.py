@@ -134,6 +134,51 @@ Only use what the description says. Do not invent facts, names, numbers or dates
         raise AnalyzerError("The local model returned an unusable answer. Try Regenerate.")
 
 
+async def write_linkedin(description: str, meta: dict, lang: str, hint: str) -> dict:
+    """A LinkedIn post for a video: three opening lines to choose from, the post text with hashtags, and a short video title."""
+    prompt = f"""You write LinkedIn posts for a government communications team. Tone: professional, warm, plain words, no emojis, no clickbait.
+Video description: {description}
+{('User context: ' + hint) if hint else ''}
+Language: {LANG.get(lang, 'English')}.
+Return ONLY JSON with this exact shape:
+{{"hooks": ["<3 different opening lines, each max 120 chars>"],
+ "body": "<2 short paragraphs, then one line inviting people to watch or share; max 900 chars; no hashtags>",
+ "hashtags": ["<3 to 5 relevant single-word or camel-case tags without #>"],
+ "title": "<video title, max 70 chars>"}}
+Only use what the description says. Do not invent facts, names, numbers or dates."""
+    raw = await _chat(settings.text_model, [{"role": "user", "content": prompt}], json_mode=True, timeout=180)
+    try:
+        d = json.loads(raw)
+        hooks = [str(h).strip()[:150] for h in d["hooks"] if str(h).strip()][:3]
+        body = str(d["body"]).strip()
+        if not hooks or not body:
+            raise ValueError("empty")
+        tags = _clean_tags(d.get("hashtags"), 5)
+        text = "\n\n".join(x for x in [hooks[0], body, " ".join(f"#{t}" for t in tags)] if x)
+        return {"hooks": hooks, "body": body, "hashtags": tags, "text": text[:3000], "title": str(d.get("title") or hooks[0]).strip()[:100]}
+    except (KeyError, ValueError, TypeError):
+        raise AnalyzerError("The local model returned an unusable answer. Try Regenerate.")
+
+
+async def write_x(description: str, meta: dict, lang: str, hint: str) -> dict:
+    """Three ready-to-post X texts for a video, each short enough for a normal account (280 characters)."""
+    prompt = f"""You write posts on X for a government communications team. Tone: clear, warm, plain words, no clickbait, at most one emoji.
+Video description: {description}
+{('User context: ' + hint) if hint else ''}
+Language: {LANG.get(lang, 'English')}.
+Return ONLY JSON with this exact shape:
+{{"posts": ["<3 different posts, each at most 240 characters including 1 or 2 hashtags at the end>"]}}
+Only use what the description says. Do not invent facts, names, numbers or dates."""
+    raw = await _chat(settings.text_model, [{"role": "user", "content": prompt}], json_mode=True, timeout=180)
+    try:
+        posts = [str(p).strip()[:280] for p in json.loads(raw)["posts"] if str(p).strip()][:3]
+        if not posts:
+            raise ValueError("empty")
+        return {"options": posts, "text": posts[0]}
+    except (KeyError, ValueError, TypeError):
+        raise AnalyzerError("The local model returned an unusable answer. Try Regenerate.")
+
+
 def json_in(text: str) -> dict:
     """The first JSON object in a model reply. Vision models often wrap it in prose or code fences."""
     m = re.search(r"\{.*\}", text, re.S)

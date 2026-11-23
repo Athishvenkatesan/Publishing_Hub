@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     youtube_client_secret: str = ""
     youtube_redirect_uri: str = "http://localhost:8100/api/youtube/callback"  # must match the Google console exactly
     frontend_url: str = "http://localhost:3100"
+    linkedin_redirect_uri: str = "http://localhost:8100/api/linkedin/callback"  # must be listed under Authorized redirect URLs in the LinkedIn app
+    x_redirect_uri: str = "http://127.0.0.1:8100/api/x/callback"  # X refuses "localhost" callbacks; it must be listed exactly like this in the X app
+    linkedin_version: str = "202606"  # the Linkedin-Version header (YYYYMM); LinkedIn supports each version for about a year
     threads_access_token: str = ""  # Threads has its own token (threads_basic, threads_content_publish)
     ollama_url: str = "http://localhost:11434"
     vision_model: str = "qwen2.5vl:7b"   # looks at video frames

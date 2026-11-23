@@ -6,7 +6,7 @@ import { Badge } from "@astryxdesign/core/Badge"
 import { Banner } from "@astryxdesign/core/Banner"
 import { Text } from "@astryxdesign/core/Text"
 
-export default function YtChannelPicker({ accounts, profiles, value, onChange, onAdd, onConnect, kids = null }) {
+export default function YtChannelPicker({ accounts, profiles, value, onChange, onAdd, onConnect, kids = null, noun = "channel", manageTo = "/youtube/accounts" }) {
   const [open, setOpen] = useState(false)
   const box = useRef(null)
   useEffect(() => {
@@ -23,7 +23,7 @@ export default function YtChannelPicker({ accounts, profiles, value, onChange, o
   const picked = accounts.filter((a) => value.includes(a.key))
   // A kids video on a channel that is not for kids (or the other way round) is easy to do by accident, so say it out loud.
   const odd = kids === null ? [] : picked.filter((a) => profiles[a.key] && profiles[a.key].kids_channel !== kids)
-  const summary = !picked.length ? "Choose channels" : picked.length === 1 ? name(picked[0]) : `${picked.length} channels selected`
+  const summary = !picked.length ? `Choose ${noun}s` : picked.length === 1 ? name(picked[0]) : `${picked.length} ${noun}s selected`
 
   return (
     <div className="stack">
@@ -33,7 +33,7 @@ export default function YtChannelPicker({ accounts, profiles, value, onChange, o
           <span>{summary}</span><span aria-hidden="true">{open ? "▴" : "▾"}</span>
         </button>
         {open && (
-          <div className="dd-menu" role="listbox" aria-multiselectable="true" aria-label="YouTube channels">
+          <div className="dd-menu" role="listbox" aria-multiselectable="true" aria-label={`${noun}s`}>
             {accounts.map((a) => {
               const p = by(a.key)
               return (
@@ -50,13 +50,13 @@ export default function YtChannelPicker({ accounts, profiles, value, onChange, o
                     </span>
                   </label>
                   {!a.connected && a.configured && <button type="button" className="linkbtn" onClick={() => onConnect(a.key)}>Connect</button>}
-                  {!a.configured && <Link className="linkbtn" to="/youtube/accounts">Finish setup</Link>}
+                  {!a.configured && <Link className="linkbtn" to={manageTo}>Finish setup</Link>}
                 </div>
               )
             })}
             <div className="dd-foot">
-              <button type="button" className="linkbtn" onClick={() => { setOpen(false); onAdd() }}>+ Add another channel</button>
-              <Link className="linkbtn" to="/youtube/accounts">Manage accounts</Link>
+              <button type="button" className="linkbtn" onClick={() => { setOpen(false); onAdd() }}>+ Add another {noun}</button>
+              <Link className="linkbtn" to={manageTo}>Manage accounts</Link>
             </div>
           </div>
         )}
@@ -70,7 +70,7 @@ export default function YtChannelPicker({ accounts, profiles, value, onChange, o
         <Banner status="warning" title={kids ? "Made for kids, but not a kids channel" : "A kids channel, but the video is not made for kids"}
           description={`${odd.map(name).join(", ")}: ${kids ? "this video is ticked Made for kids, and that channel is not marked for children." : "the video is not ticked Made for kids, and that channel is marked for children."} Check before you upload.`} />
       )}
-      {value.length > 1 && <Text size="sm" color="secondary">The same video, details and time go to all {value.length} channels. Each uses its own sign-in, and one failing does not stop the others.</Text>}
+      {value.length > 1 && <Text size="sm" color="secondary">The same video, details and time go to all {value.length} {noun}s. Each uses its own sign-in, and one failing does not stop the others.</Text>}
     </div>
   )
 }

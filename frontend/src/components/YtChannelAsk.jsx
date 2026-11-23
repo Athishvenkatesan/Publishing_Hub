@@ -11,15 +11,16 @@ const STATE = { PUBLISHED: "Published", SCHEDULED: "Scheduled", PUBLISHING: "Pub
 // Why a channel cannot take this action (shown instead of letting it fail).
 const blocked = (kind, r) => (["open", "copy"].includes(kind) && !r.post_url ? "No link yet" : ["schedule", "cancel"].includes(kind) && r.status !== "SCHEDULED" ? "Not scheduled" : "")
 
-export default function YtChannelAsk({ ask, onPick, onClose }) {
+export default function YtChannelAsk({ ask, onPick, onClose, noun = "channel", labels = {} }) {
   const { kind, row } = ask || {}
+  const text = { ...LABELS, ...labels }
   return (
     <>
       <div className={`scrim${ask ? " scrim--on" : ""}`} onClick={onClose} />
       <aside className={`drawer${ask ? " drawer--on" : ""}`} aria-hidden={!ask}>
         <header className="drawer-head">
-          <div><Heading level={3}>Which channel?</Heading>
-            <Text size="sm" color="secondary">{LABELS[kind]}: {row?.title || row?.filename}</Text></div>
+          <div><Heading level={3}>Which {noun}?</Heading>
+            <Text size="sm" color="secondary">{text[kind]}: {row?.title || row?.filename}</Text></div>
           <Button variant="secondary" size="sm" label="Close" onClick={onClose} />
         </header>
         <div className="accts" role="list">
@@ -32,7 +33,7 @@ export default function YtChannelAsk({ ask, onPick, onClose }) {
             )
           })}
         </div>
-        <Text size="sm" color="secondary">The same video is on each of these channels. The action only changes the one you pick.</Text>
+        <Text size="sm" color="secondary">The same video is on each of these {noun}s. The action only changes the one you pick.</Text>
       </aside>
     </>
   )

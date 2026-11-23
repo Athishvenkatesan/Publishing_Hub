@@ -18,7 +18,7 @@ export function groupRows(items) {
   return [...by.values()]
 }
 const lines = (r) => r.rows || [r]
-const name = (x) => (x.platform === "youtube-direct" ? `YouTube - ${x.account_name}` : `${x.platform} - @${x.account_name}`)
+const name = (x) => (x.platform === "youtube-direct" ? `YouTube - ${x.account_name}` : x.platform === "linkedin" ? `LinkedIn - ${x.account_name}` : `${x.platform} - @${x.account_name}`)
 
 const base = [
   { key: "when", header: "When", width: pixel(150),

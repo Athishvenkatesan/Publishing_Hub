@@ -173,6 +173,28 @@ Open **http://localhost:3100/#/youtube**. It signs in with your Google OAuth cli
 - **Fonts:** thumbnails use Figtree and Noto Sans Arabic from `backend/assets/fonts` (SIL Open Font License).
 - **Limits:** a Google project in Testing mode signs you out after 7 days. A new project's uploads may stay private until it passes YouTube's audit; the history says so when that happens.
 
+## LinkedIn screen (your own LinkedIn apps, several accounts)
+
+Open **http://localhost:3100/#/linkedin** (the **LinkedIn** link in the top bar). It works like the YouTube screen: add accounts on screen, sign each in, and post one video to one or several accounts at once. Posting is **as the signed-in person's profile**.
+
+- **LinkedIn setup (once per app):** in the [LinkedIn Developer portal](https://www.linkedin.com/developers/apps) create an app (it must be attached to a LinkedIn Page you manage). On the **Products** tab add **Share on LinkedIn** and **Sign In with LinkedIn using OpenID Connect**. On the **Auth** tab add `http://localhost:8100/api/linkedin/callback` under **Authorized redirect URLs for your app** and press Update, then copy the **Client ID** and **Primary Client Secret**. LinkedIn has no test-user list: the member who signs in just allows the app.
+- **Two ways to sign in.** (1) **Connect** opens LinkedIn in a popup window that closes itself when done (the normal sign-in): needs the redirect address added under Authorized redirect URLs for your app. (2) **Connect with a token** (no redirect URL at all): in the Developer portal open the OAuth token generator (Docs and tools), pick your app, tick `openid`, `profile`, `email` and `w_member_social`, approve, copy the token and paste it on the account's card. The app asks LinkedIn (token introspection, with the app's own client ID and secret) whether the token is live, belongs to this app and carries those permissions, then saves it. Either way the app's Auth tab must show permissions: if it says **No permissions added**, add the two products first (Products tab). A pasted token lasts about 60 days, like a normal sign-in.
+- **Accounts manager** (`#/linkedin/accounts`): the same screen as YouTube's. Add an account by pasting the client ID and secret (saved only in `backend/linkedin_accounts.json`, git-ignored, mode 600, never sent back to the browser) or add a second person on an app you already added. Each card has a live checklist: app saved, LinkedIn accepts the sign-in (it asks LinkedIn first, so you see what to fix instead of LinkedIn's error page), signed in (who, and days left), permission to post. Sign-ins are saved in `backend/linkedin_tokens/<key>.json` (git-ignored).
+- **Post:** choose an MP4 (3 seconds to 30 minutes, up to 300 MB). The local model watches it and writes three opening lines to choose from, the post text with 3 to 5 hashtags and a video title (all editable, up to 3000 characters). Choose **Anyone** or **Connections only**, pick the accounts in the **Post to** list (nothing is ticked for you) and press Post. Characters LinkedIn treats as formatting, such as ( ) @ _, are sent as plain text so they never cut the post short; `#hashtags` stay hashtags.
+- **History:** a video posted to several accounts is one row listing each account. The three-dot menu asks which account first, then: Open on LinkedIn, Copy link, Edit the post text, Remove from this list, Delete from LinkedIn.
+- **Limits (LinkedIn's rules, not the app's):** a sign-in lasts **60 days** and cannot be renewed in the background (press Connect again; it is quick while you are signed in to LinkedIn). There is **no scheduled posting** in LinkedIn's public API, so every post goes out now. Posting as a **company page** needs LinkedIn's approval for the Community Management API and is not built. Reading posts back, and any analytics, are not available to a normal app, so the history is what this app sent and shows no views or likes. Each member may make about 150 API requests a day (a video uses several).
+- **Tech:** Posts API (`/rest/posts`) with the `Linkedin-Version` header (`LINKEDIN_VERSION`, default `202606`), Videos API for the upload (initialize, 4 MB parts, finalize), OpenID Connect for who is signed in. Not yet verified against the real service: **no post has been made**. The sign-in check and the checklist were run against LinkedIn's real sign-in page.
+
+## X screen (your own X apps, several accounts)
+
+Open **http://localhost:3100/#/x** (the **X** link in the top bar). Same layout as the LinkedIn screen: add accounts on screen, sign each in, and post one video to one or several X accounts at once.
+
+- **X setup (once per app):** in the X Developer Console create a project and an app, and add credits (X charges per request: about $0.015 per post; there is no free posting tier). Under **User authentication settings**: App permissions **Read and write**, Type of App **Web App, Automated App or Bot**, Callback URI / Redirect URL **`http://127.0.0.1:8100/api/x/callback`** (X does not accept `localhost`), Website URL any address you own. On **Keys and tokens** copy the **OAuth 2.0 Client ID and Client Secret**. The API Key, API Key Secret and the Access Token on that page are OAuth 1.0a values and are not used.
+- **Accounts manager** (`#/x/accounts`): add the Client ID and Secret (saved only in `backend/x_accounts.json`, git-ignored, mode 600). Connect opens X in a popup (OAuth 2.0 with PKCE). The sign-in asks for `tweet.read tweet.write users.read media.write offline.access`; `offline.access` gives a refresh token, so the 2-hour access token renews itself and you do not sign in again. Sign-ins are saved in `backend/x_tokens/<key>.json` (git-ignored). X's sign-in page cannot be checked in advance, so the checklist marks the callback as done after the first good sign-in, then checks the permissions.
+- **Post:** an MP4 or MOV; the local model writes three short posts (up to 240 characters with 1 or 2 hashtags) to pick from; **Who can reply** (Everyone, People you follow, Only mentioned); tick the accounts; Post. The upload uses the v2 chunked media upload (initialize, 4 MB parts, finalize, wait for processing). 280 characters on a normal account; longer only for Premium.
+- **History:** grouped per video like the other screens; Open on X, Copy link, Remove from this list, Delete from X. X's API has no editing and no scheduled posts.
+- **Not verified against the real service:** no X account has been added or signed in yet; everything is tested with a mocked X.
+
 ## API
 
 All routes are under `/api`.
@@ -209,6 +231,20 @@ All routes are under `/api`.
 | `DELETE` | `/youtube/posts/{id}` | Delete the video on YouTube and remove the row |
 | `DELETE` | `/youtube/posts/{id}/local` | Remove the row from the list only |
 | `GET` | `/youtube/posts` | YouTube history, refreshed from YouTube |
+| `GET` | `/linkedin/accounts`, `/linkedin/status`, `/linkedin/channels/profiles` | LinkedIn accounts and sign-in state (`?account=`) |
+| `GET` | `/linkedin/connect`, `/linkedin/callback` | LinkedIn sign-in link (checked first) and its return address |
+| `POST` | `/linkedin/token` | Sign in with a token from the portal's token generator (no redirect URL) |
+| `POST` | `/linkedin/posts/multi` | Post one video to several LinkedIn accounts at once (`accounts` repeated) |
+| `GET` | `/linkedin/posts` | LinkedIn history |
+| `PATCH` / `DELETE` | `/linkedin/posts/{id}` | Edit the text, or delete on LinkedIn and remove the row |
+| `DELETE` | `/linkedin/posts/{id}/local` | Remove the row from the list only |
+| `GET` `POST` `PATCH` `DELETE` | `/linkedin/manager/accounts[...]` | The accounts manager (same shape as YouTube's), plus `/{key}/check` |
+| `GET` | `/x/accounts`, `/x/channels/profiles`, `/x/connect`, `/x/callback` | X accounts, sign-in link (PKCE) and its return address |
+| `POST` | `/x/posts/multi` | Post one video to several X accounts at once |
+| `GET` / `DELETE` | `/x/posts`, `/x/posts/{id}`, `/x/posts/{id}/local` | X history, delete on X, remove from the list |
+| `GET` `POST` `PATCH` `DELETE` | `/x/manager/accounts[...]` | The X accounts manager, plus `/{key}/check` |
+| `POST` | `/analyze/x` | Upload a video, get three short posts for X |
+| `POST` | `/analyze/linkedin` | Upload a video, get opening lines, the post text with hashtags and a title |
 
 Outside `/api`: `GET /healthz` (alive) and `GET /readyz` (ready).
 

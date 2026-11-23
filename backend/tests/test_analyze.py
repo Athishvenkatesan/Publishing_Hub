@@ -149,3 +149,26 @@ async def test_the_context_note_and_file_labels_count_even_when_the_model_says_n
     subprocess.run(["ffmpeg", "-y", "-i", str(clip), "-c", "copy", "-metadata", "comment=Created with Runway Gen-3", str(tagged)], check=True, capture_output=True)
     s = await analyse(clip, NO_VERDICT, path=tagged)
     assert s["ai_generated"]["value"] and "runway" in s["ai_generated"]["reason"].lower()
+
+
+@respx.mock
+async def test_analyze_linkedin_returns_hooks_text_and_a_title(clip):
+    pkg = json.dumps({"hooks": ["First line", "Second line", "Third line"], "body": "Para one.\n\nPara two. Watch and share.",
+                      "hashtags": ["#Water", "Dubai"], "title": "Water saving"})
+    respx.post(OLLAMA).mock(side_effect=by_model([reply("A test pattern.")], [reply(pkg)]))
+    async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
+        r = await c.post("/api/analyze/linkedin", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")}, data={"lang": "en"})
+    assert r.status_code == 200, r.text
+    li = r.json()["linkedin"]
+    assert li["hooks"] == ["First line", "Second line", "Third line"] and li["title"] == "Water saving" and li["hashtags"] == ["Water", "Dubai"]
+    assert li["text"] == "First line\n\nPara one.\n\nPara two. Watch and share.\n\n#Water #Dubai"
+
+
+@respx.mock
+async def test_analyze_x_returns_three_short_posts(clip):
+    respx.post(OLLAMA).mock(side_effect=by_model([reply("A test pattern.")], [reply(json.dumps({"posts": ["One #A", "Two #B", "x" * 400]}))]))
+    async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
+        r = await c.post("/api/analyze/x", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")}, data={"lang": "en"})
+    assert r.status_code == 200, r.text
+    x = r.json()["x"]
+    assert x["options"][:2] == ["One #A", "Two #B"] and len(x["options"][2]) == 280 and x["text"] == "One #A"

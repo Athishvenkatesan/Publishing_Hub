@@ -8,7 +8,7 @@ from fastapi import FastAPI
 import models  # noqa: F401  (register tables)
 from db import Base, engine
 import yt_thumbnail
-from routes import accounts, analyze, facebook, posts, thumbnails, yt_channels, yt_manager, yt_studio, youtube
+from routes import accounts, analyze, facebook, li_manager, linkedin, posts, x_manager, xposts, thumbnails, yt_channels, yt_manager, yt_studio, youtube
 
 
 class JsonFormatter(logging.Formatter):
@@ -44,6 +44,10 @@ app.include_router(thumbnails.router)
 app.include_router(yt_studio.router)
 app.include_router(yt_manager.router)
 app.include_router(yt_channels.router)
+app.include_router(linkedin.router)
+app.include_router(li_manager.router)
+app.include_router(xposts.router)
+app.include_router(x_manager.router)
 
 
 @app.get("/healthz")

@@ -8,3 +8,7 @@ dist/
 youtube_token.json
 youtube_tokens/
 youtube_accounts.json
+linkedin_tokens/
+linkedin_accounts.json
+x_tokens/
+x_accounts.json

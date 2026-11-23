@@ -67,3 +67,23 @@ async def analyze_youtube(file: UploadFile = File(...), lang: str = Form("en"), 
         return {"meta": meta, "description": description, "youtube": {**pkg, "suggestions": ai_signals.video_signals(markers, looks, hint)}}
     except analyzer.AnalyzerError as e:
         raise HTTPException(503, str(e))
+
+
+@router.post("/analyze/linkedin")
+async def analyze_linkedin(file: UploadFile = File(...), lang: str = Form("en"), hint: str = Form("")):
+    """Same watch step, then a LinkedIn post: opening-line options, the text with hashtags, and a video title."""
+    meta, description, *_ = await _watch(file, hint)
+    try:
+        return {"meta": meta, "description": description, "linkedin": await analyzer.write_linkedin(description, meta, lang, hint)}
+    except analyzer.AnalyzerError as e:
+        raise HTTPException(503, str(e))
+
+
+@router.post("/analyze/x")
+async def analyze_x(file: UploadFile = File(...), lang: str = Form("en"), hint: str = Form("")):
+    """Same watch step, then three short posts for X."""
+    meta, description, *_ = await _watch(file, hint)
+    try:
+        return {"meta": meta, "description": description, "x": await analyzer.write_x(description, meta, lang, hint)}
+    except analyzer.AnalyzerError as e:
+        raise HTTPException(503, str(e))

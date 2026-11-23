@@ -1,4 +1,4 @@
-// One account on the manager screen: what it is, whether it is signed in, and what you can do with it.
+// One account on the manager screen (YouTube or LinkedIn): what it is, whether it is signed in, and what you can do with it.
 import { useState } from "react"
 import { Badge } from "@astryxdesign/core/Badge"
 import { Banner } from "@astryxdesign/core/Banner"
@@ -6,10 +6,13 @@ import { Button } from "@astryxdesign/core/Button"
 import { Text } from "@astryxdesign/core/Text"
 import { TextInput } from "@astryxdesign/core/TextInput"
 import { Link } from "react-router"
-import { ytDisconnect, setYtAccount, mgrDelete, mgrEdit, connectAccount_ } from "../lib/api.js"
+import { KINDS } from "../lib/mgrKinds.js"
+import { popupFailure } from "../lib/liPopup.js"
 import MgrChecklist from "./MgrChecklist.jsx"
+import MgrTokenBox from "./MgrTokenBox.jsx"
 
-export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, openCheck }) {
+export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, openCheck, kind = "youtube" }) {
+  const k = KINDS[kind]
   const [open, setOpen] = useState(openCheck)
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(acct.label)
@@ -17,6 +20,7 @@ export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, ope
   const [busy, setBusy] = useState("")
   const [err, setErr] = useState("")
   const [tick, setTick] = useState(0)
+  const [tokenOpen, setTokenOpen] = useState(false)
   const mine = acct.source === "file"
   const reusedBy = accounts.filter((a) => a.client_from === acct.key).length
 
@@ -25,11 +29,17 @@ export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, ope
     try { await fn() } catch (e) { setErr(e.message) } finally { setBusy("") }
   }
   const connect = (opts = {}) => run("connect", async () => {
-    try { window.location.href = (await connectAccount_(acct.key, opts, "accounts")).url } catch (e) { setOpen(true); setTick((t) => t + 1); throw e }  // show the checklist beside the reason
+    if (k.popup) {  // sign in in a popup; afterwards refresh the card and its checklist either way
+      const r = await k.popup(acct.key)
+      onChanged(); setOpen(true); setTick((t) => t + 1)
+      if (!r.ok) throw new Error(popupFailure(r))
+      return
+    }
+    try { window.location.href = (await k.connect(acct.key, opts)).url } catch (e) { setOpen(true); setTick((t) => t + 1); throw e }  // show the checklist beside the reason
   })
-  const disconnect = () => run("disconnect", async () => { setYtAccount(acct.key); await ytDisconnect(); onChanged(); setTick((t) => t + 1) })
-  const rename = () => run("rename", async () => { await mgrEdit(acct.key, { label: name }); setRenaming(false); onChanged() })
-  const remove = () => run("remove", async () => { await mgrDelete(acct.key); onChanged() })
+  const disconnect = () => run("disconnect", async () => { await k.disconnect(acct.key); onChanged(); setTick((t) => t + 1) })
+  const rename = () => run("rename", async () => { await k.edit(acct.key, { label: name }); setRenaming(false); onChanged() })
+  const remove = () => run("remove", async () => { await k.remove(acct.key); onChanged() })
 
   return (
     <article className="panel acct-card">
@@ -37,12 +47,13 @@ export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, ope
         <div>
           {renaming ? <TextInput label="Account name" value={name} onChange={setName} /> : <Text weight="semibold">{acct.label}</Text>}
           <div className="badges">
-            <Badge variant={acct.connected ? "success" : "neutral"} label={acct.connected ? "Connected" : "Not connected"} />
+            <Badge variant={acct.connected ? "success" : acct.expired ? "warning" : "neutral"} label={acct.connected ? "Connected" : acct.expired ? "Sign-in ran out" : "Not connected"} />
             <Badge variant="neutral" label={mine ? "Added here" : "From .env"} />
-            {acct.client_from && <Badge variant="info" label="Shares a Google app" />}
+            {acct.client_from && <Badge variant="info" label={`Shares a ${k.appWord}`} />}
             {!acct.configured && <Badge variant="warning" label="Needs client ID and secret" />}
           </div>
-          <Text size="sm" color="secondary">{acct.client_from ? `Google app of ${accounts.find((a) => a.key === acct.client_from)?.label || acct.client_from}` : acct.client_hint ? `Google app ${acct.client_hint}` : "No Google app yet"}</Text>
+          {acct.name && <Text size="sm">{acct.name}{acct.email ? ` - ${acct.email}` : ""}</Text>}
+          <Text size="sm" color="secondary">{acct.client_from ? `${k.appWord} of ${accounts.find((a) => a.key === acct.client_from)?.label || acct.client_from}` : acct.client_hint ? `${k.appWord} ${acct.client_hint}` : `No ${k.appWord} yet`}</Text>
         </div>
       </div>
       {err && <Banner status="error" title="Could not complete" description={err} isDismissable onDismiss={() => setErr("")} />}
@@ -50,8 +61,9 @@ export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, ope
         {acct.configured && !acct.connected && <Button label="Connect" isLoading={busy === "connect"} onClick={() => connect()} />}
         {acct.connected && <Button variant="secondary" label="Disconnect" isLoading={busy === "disconnect"} onClick={disconnect} />}
         <Button variant="secondary" label={open ? "Hide checklist" : "Check setup"} onClick={() => setOpen(!open)} />
-        {acct.configured && <Button variant="secondary" label="Another channel, same Google app" onClick={() => onReuse(acct.key)} />}
-        {acct.connected && <Link className="btn-link btn-link--ghost" to={`/youtube/studio?account=${acct.key}`}>Open Studio</Link>}
+        {acct.configured && k.token && <Button variant="secondary" label={tokenOpen ? "Hide token box" : acct.connected ? "Replace the token" : "Connect with a token"} onClick={() => setTokenOpen(!tokenOpen)} />}
+        {acct.configured && <Button variant="secondary" label={`Another ${k.unit}, same ${k.appWord}`} onClick={() => onReuse(acct.key)} />}
+        {acct.connected && k.studio && <Link className="btn-link btn-link--ghost" to={k.studio(acct.key)}>Open Studio</Link>}
       </div>
       {mine && (
         <div className="row-btns">
@@ -62,9 +74,10 @@ export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, ope
             : <Button size="sm" variant="secondary" label="Remove" onClick={() => setConfirm(true)} />}
         </div>
       )}
-      {confirm && <Text size="sm" color="secondary">This removes the saved Google app and sign-in from this computer{reusedBy ? ` (${reusedBy} other channel(s) share it, so remove those first)` : ""}. Videos already on YouTube are not touched.</Text>}
+      {confirm && <Text size="sm" color="secondary">{k.removeNote}{reusedBy ? ` ${reusedBy} other account(s) share this ${k.appWord}, so remove those first.` : ""}</Text>}
       {!mine && <Text size="sm" color="secondary">Set in backend/.env ({acct.env_names || "see .env.example"}). Edit that file to change or remove it.</Text>}
-      {open && <MgrChecklist acct={acct} onConnect={connect} refreshKey={tick} />}
+      {tokenOpen && <MgrTokenBox kind={kind} acct={acct} onSaved={() => { setTokenOpen(false); setOpen(true); onChanged(); setTick((t) => t + 1) }} />}
+      {open && <MgrChecklist acct={acct} onConnect={connect} refreshKey={tick} kind={kind} />}
     </article>
   )
 }
