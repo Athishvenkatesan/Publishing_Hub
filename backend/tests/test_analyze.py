@@ -172,3 +172,27 @@ async def test_analyze_x_returns_three_short_posts(clip):
     assert r.status_code == 200, r.text
     x = r.json()["x"]
     assert x["options"][:2] == ["One #A", "Two #B"] and len(x["options"][2]) == 280 and x["text"] == "One #A"
+
+
+@respx.mock
+async def test_analyze_all_watches_once_and_writes_all_three_posts(clip):
+    yt = json.dumps({"titles": ["One", "Two"], "summary": "S.", "key_points": ["K"], "call_to_action": "Go.", "hashtags": ["Test"],
+                     "tags": ["a"], "category": "Education", "category_reason": "r", "thumbnail_ideas": ["Big"]})
+    li = json.dumps({"hooks": ["H1", "H2", "H3"], "body": "Body.", "hashtags": ["Water"], "title": "Water"})
+    xp = json.dumps({"posts": ["X one #A", "X two #B", "X three #C"]})
+    route = respx.post(OLLAMA).mock(side_effect=by_model([reply("A test pattern."), reply(NO_VERDICT)], [reply(yt), reply(li), reply(xp)]))
+    async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
+        r = await c.post("/api/analyze/all", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")}, data={"lang": "en"})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["youtube"]["title"] == "One" and d["linkedin"]["title"] == "Water" and d["x"]["text"] == "X one #A"
+    vision_calls = [c for c in route.calls if json.loads(c.request.content)["model"] == "qwen2.5vl:7b"]
+    assert len(vision_calls) == 2  # describe + classify, once for the whole video
+
+
+@respx.mock
+async def test_analyze_all_reports_a_missing_model(clip):
+    respx.post(OLLAMA).mock(return_value=httpx.Response(404, json={"error": "not found"}))
+    async with AsyncClient(transport=ASGITransport(app=appmod.app), base_url="http://t") as c:
+        r = await c.post("/api/analyze/all", files={"file": ("t.mp4", clip.read_bytes(), "video/mp4")})
+    assert r.status_code == 503

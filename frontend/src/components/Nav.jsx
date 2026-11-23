@@ -1,6 +1,6 @@
 import { NavLink } from "react-router"
 
-const LINKS = [["/", "Instagram + YouTube"], ["/meta", "Insta - Face - Threads"], ["/youtube", "YouTube"], ["/linkedin", "LinkedIn"], ["/x", "X"]]
+const LINKS = [["/", "Instagram + YouTube"], ["/meta", "Insta - Face - Threads"], ["/youtube", "YouTube"], ["/linkedin", "LinkedIn"], ["/x", "X"], ["/all", "YouTube + LinkedIn + X"]]
 
 export default function Nav() {
   return (
