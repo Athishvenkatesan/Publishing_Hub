@@ -9,6 +9,8 @@ import { metaMgrEdit, metaMgrExtend, metaMgrValues } from "../lib/api.js"
 import MgrEditPanel from "./MgrEditPanel.jsx"
 import MgrExpiry from "./MgrExpiry.jsx"
 
+const time = (d) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+
 const CAN = { facebook_video: "Facebook", instagram_video: "Instagram", threads_video: "Threads" }
 
 function fieldsFor(t) {
@@ -28,6 +30,8 @@ export default function MetaTokenCard({ t, onChanged }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState("")
   const [ok, setOk] = useState("")
+  const [checking, setChecking] = useState(false)
+  const [checked, setChecked] = useState(null)
   const short = t.expires_at && t.expires_at - Date.now() / 1000 < 2 * 86400  // under two days: a short token
   const status = !t.has_token ? ["neutral", "No token"] : t.valid ? ["success", "Working"] : ["error", "Not working"]
 
@@ -35,6 +39,8 @@ export default function MetaTokenCard({ t, onChanged }) {
     setBusy(true); setErr(""); setOk("")
     try { await metaMgrExtend(t.key); setOk("Swapped for a 60-day token."); onChanged() } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
+  // Asks Meta about this token again (the same call reloads both Meta tokens on the screen).
+  const check = () => { setChecking(true); Promise.resolve(onChanged()).finally(() => { setChecking(false); setChecked(new Date()) }) }
   async function save(diff) {
     await metaMgrEdit(t.key, diff); setEditing(false); setOk("Saved."); onChanged()
   }
@@ -62,8 +68,10 @@ export default function MetaTokenCard({ t, onChanged }) {
       {ok && <Banner status="success" title={ok} isDismissable onDismiss={() => setOk("")} />}
       <div className="row-btns">
         <Button label={t.has_token ? "Edit" : "Add the token"} onClick={() => setEditing(true)} />
+        <Button variant="secondary" label="Check again" isLoading={checking} onClick={check} />
         {t.has_token && t.has_app_secret && short && <Button variant="secondary" label="Make it last 60 days" isLoading={busy} onClick={extend} />}
       </div>
+      {checked && <Text size="sm" color="secondary">Last checked {time(checked)}.</Text>}
       {t.has_token && !t.has_app_secret && short && <Text size="sm" color="secondary">This token runs out soon. Add the app secret with Edit and it is swapped for a 60-day one.</Text>}
       {t.scopes?.length > 0 && <details><summary><Text size="sm" color="secondary">Permissions ({t.scopes.length})</Text></summary><p className="mono">{t.scopes.join(", ")}</p></details>}
       <MgrEditPanel open={editing} title={`Edit ${t.label}`} sub="These are the values saved in backend/.env on this computer. Only what you change is saved."

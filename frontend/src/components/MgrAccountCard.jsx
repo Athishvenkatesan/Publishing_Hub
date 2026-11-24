@@ -12,7 +12,7 @@ import MgrEditPanel from "./MgrEditPanel.jsx"
 import MgrExpiry from "./MgrExpiry.jsx"
 import MgrTokenBox from "./MgrTokenBox.jsx"
 
-export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, openCheck, kind = "youtube" }) {
+export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, openCheck, checkKey = 0, kind = "youtube" }) {
   const k = KINDS[kind]
   const [open, setOpen] = useState(openCheck)
   const [editing, setEditing] = useState(false)
@@ -25,6 +25,8 @@ export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, ope
   const editable = mine || kind === "youtube"  // YouTube accounts set in .env are edited there by the backend
   const reusedBy = accounts.filter((a) => a.client_from === acct.key).length
 
+  // Re-reads this account's sign-in and runs the checklist again, opening it so the answer is in view.
+  const checkAgain = () => run("check", async () => { await onChanged(); setOpen(true); setTick((t) => t + 1) })
   async function run(label, fn) {
     setBusy(label); setErr("")
     try { await fn() } catch (e) { setErr(e.message) } finally { setBusy("") }
@@ -70,6 +72,7 @@ export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, ope
         {acct.configured && !acct.connected && <Button label="Connect" isLoading={busy === "connect"} onClick={() => connect()} />}
         {acct.connected && <Button variant="secondary" label="Disconnect" isLoading={busy === "disconnect"} onClick={disconnect} />}
         <Button variant="secondary" label={open ? "Hide checklist" : "Check setup"} onClick={() => setOpen(!open)} />
+        <Button variant="secondary" label="Check again" isLoading={busy === "check"} onClick={checkAgain} />
         {acct.configured && k.token && <Button variant="secondary" label={tokenOpen ? "Hide token box" : acct.connected ? "Replace the token" : "Connect with a token"} onClick={() => setTokenOpen(!tokenOpen)} />}
         {acct.configured && <Button variant="secondary" label={`Another ${k.unit}, same ${k.appWord}`} onClick={() => onReuse(acct.key)} />}
         {acct.connected && k.studio && <Link className="btn-link btn-link--ghost" to={k.studio(acct.key)}>Open Studio</Link>}
@@ -85,7 +88,7 @@ export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, ope
       {confirm && <Text size="sm" color="secondary">{k.removeNote}{reusedBy ? ` ${reusedBy} other account(s) share this ${k.appWord}, so remove those first.` : ""}</Text>}
       {!mine && <Text size="sm" color="secondary">Set in backend/.env ({acct.env_names || "see .env.example"}). Edit saves your changes there; to remove it, edit that file.</Text>}
       {tokenOpen && <MgrTokenBox kind={kind} acct={acct} onSaved={() => { setTokenOpen(false); setOpen(true); onChanged(); setTick((t) => t + 1) }} />}
-      {open && <MgrChecklist acct={acct} onConnect={connect} refreshKey={tick} kind={kind} />}
+      {open && <MgrChecklist acct={acct} onConnect={connect} refreshKey={`${tick}:${checkKey}`} kind={kind} />}
       <MgrEditPanel open={editing} title={`Edit ${acct.label}`} sub={acct.client_from ? `${k.name} account. It shares another account's ${k.appWord}: change the client ID and secret on that account.` : `${k.name} account. These are the saved values; only what you change is saved.`} fields={fields}
         load={() => k.values(acct.key)} onSave={save} onClose={() => setEditing(false)} />
     </article>

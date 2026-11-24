@@ -5,7 +5,7 @@ import { Text } from "@astryxdesign/core/Text"
 export default function AllChannels({ data, loading }) {
   return (
     <div className="counts counts--4">
-      {data.map(({ p, accounts }) => {
+      {data.map(({ p, accounts, error }) => {
         const signedIn = accounts.filter((a) => a.connected).length
         const waiting = accounts.length - signedIn
         return (
@@ -13,6 +13,7 @@ export default function AllChannels({ data, loading }) {
             <Text weight="semibold">{p.name}{p.soon ? " (coming soon)" : ""}</Text>
             <b>{loading && !accounts.length ? "-" : accounts.length}</b>
             <Text size="sm" color="secondary">{accounts.length === 1 ? p.unit : `${p.unit}s`}, {signedIn} signed in{waiting > 0 ? `, ${waiting} not signed in` : ""}</Text>
+            {error && <Text size="sm" color="error">{error}</Text>}
             <Link className="btn-link btn-link--ghost" to={p.accountsRoute}>Manage accounts</Link>
           </div>
         )

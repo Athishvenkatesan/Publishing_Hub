@@ -1,7 +1,9 @@
+import { useState } from "react"
 import { Link } from "react-router"
 import { Banner } from "@astryxdesign/core/Banner"
 import { Heading } from "@astryxdesign/core/Heading"
 import { Text } from "@astryxdesign/core/Text"
+import CheckAgain from "../components/CheckAgain.jsx"
 import MetaTokenCard from "../components/MetaTokenCard.jsx"
 import Nav from "../components/Nav.jsx"
 import { metaMgrList } from "../lib/api.js"
@@ -10,6 +12,9 @@ import { useLoad } from "../lib/useLoad.js"
 // The Meta accounts manager: the Facebook + Instagram token and the Threads token, each with its expiry, and the setup steps.
 export default function MetaAccounts() {
   const { data, error, reload } = useLoad(metaMgrList, [])
+  const [checked, setChecked] = useState(null)
+  const [checking, setChecking] = useState(false)
+  const check = () => { setChecking(true); reload().finally(() => { setChecking(false); setChecked(new Date()) }) }  // asks Meta about every token again
   return (
     <>
       <Nav />
@@ -19,7 +24,10 @@ export default function MetaAccounts() {
           <h1 className="hero-title">Accounts and tokens</h1>
           <p className="hero-sub">The token behind Facebook and Instagram, and the Threads token. See who each one is and when it runs out, paste a new one, and make it last 60 days.</p>
         </div>
-        <div className="hero-side"><Link className="hero-btn" to="/meta">Back to Meta</Link></div>
+        <div className="hero-side">
+          <CheckAgain hero onCheck={check} loading={checking} checked={checked} />
+          <Link className="hero-btn" to="/meta">Back to Meta</Link>
+        </div>
       </header>
       <div className="page stack">
         {error && <Banner status="error" title="Could not load the tokens" description={error} />}

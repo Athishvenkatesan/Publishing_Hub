@@ -214,3 +214,9 @@ Not scaffolded with `dak init`: this is a single-screen POC. SQLite instead of P
 - Tests redirect `.env` writes and the expiry file to a temp folder (`tests/conftest.py`). One earlier test run wrote `YOUTUBE_MAIN1_LABEL=x` into the real `.env`; removed.
 - Seen live: the saved Meta token expired 23 Nov 11:00 PST; the screen shows "Not working" with Meta's message. Not verified: saving a real token or the 60-day swap (no app secret given).
 - 24 Nov: Edit panels now open filled with the saved values (secrets and tokens behind Show), read only when Edit opens via `GET .../accounts/{key}/values` on each manager; only changed values are saved.
+
+### 2026-11-24 - Threads re-check, Check again on All platforms
+- Re-tested: the Meta token (EAA..., Facebook user token) is refused by graph.threads.net ("Cannot parse access token") and has no threads_* scopes. Threads needs its own token from the Threads use case.
+- The token saved on 24 Nov lacks pages_manage_posts, instagram_basic and instagram_content_publish (the 23 Nov one had them), so Facebook and Instagram show as not ready and the linked Instagram account is hidden.
+- All platforms screen: Check again button re-asks every platform (allSettled), shows the last-checked time and each failing platform's reason; a failing platform shows no accounts instead of stale ones.
+- 24 Nov: Check again on every manager screen: a button in each account or token card (next to Edit / Check setup) and one in the page header with the last-checked time. YouTube, LinkedIn and X re-read the list and re-run the checklist; Meta asks Meta about the tokens again. Checked with a temporary jsdom run against the live backend (read-only calls); not seen in a real browser.

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Heading } from "@astryxdesign/core/Heading"
 import { Text } from "@astryxdesign/core/Text"
 import AllChannels from "../components/AllChannels.jsx"
+import CheckAgain from "../components/CheckAgain.jsx"
 import AllStudio from "../components/AllStudio.jsx"
 import HistoryTable, { groupRows } from "../components/HistoryTable.jsx"
 import Nav from "../components/Nav.jsx"
@@ -17,11 +18,13 @@ export default function AllPlatforms() {
   const [items, setItems] = useState([])
   const set = (kind, patch) => setData((cur) => cur.map((d) => (d.p.kind === kind ? { ...d, ...patch } : d)))
 
-  const reload = useCallback(() => {
-    PLATFORMS.forEach((p) => {  // a platform that fails to load just shows as empty; the others still work
-      p.api.accounts().then((d) => set(p.kind, { accounts: d.accounts })).catch(() => {}).finally(() => setLoading(false))
-      p.api.profiles().then((d) => set(p.kind, { profiles: Object.fromEntries(d.profiles.map((x) => [x.key, x])) })).catch(() => {})
-    })
+  const [checked, setChecked] = useState(null)
+  const reload = useCallback(() => {  // asks every platform again; one that fails shows its reason and the others still load
+    setLoading(true)
+    return Promise.allSettled(PLATFORMS.map((p) => Promise.all([
+      p.api.accounts().then((d) => set(p.kind, { accounts: d.accounts, error: "" })).catch((e) => set(p.kind, { accounts: [], error: e.message })),
+      p.api.profiles().then((d) => set(p.kind, { profiles: Object.fromEntries(d.profiles.map((x) => [x.key, x])) })).catch(() => {}),
+    ]))).finally(() => { setLoading(false); setChecked(new Date()) })
   }, [])
   const load = useCallback(() => {
     Promise.all(PLATFORMS.map((p) => p.api.history().then((d) => d.items).catch(() => []))).then((all) =>
@@ -41,7 +44,7 @@ export default function AllPlatforms() {
         </div>
       </header>
       <div className="page stack">
-        <Step n="1" title="All your channels and profiles"><AllChannels data={data} loading={loading} /></Step>
+        <Step n="1" title="All your channels and profiles" aside={<CheckAgain inline onCheck={() => { reload(); load() }} loading={loading} checked={checked} />}><AllChannels data={data} loading={loading} /></Step>
         <AllStudio data={data} onDone={load} />
         <section className="history">
           <div className="history-head"><Heading level={3}>History</Heading><Text size="sm" color="secondary">Posts made from this app on YouTube, LinkedIn, X and Meta. Edit or delete on each platform's own screen.</Text></div>

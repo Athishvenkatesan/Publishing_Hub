@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Link, useSearchParams } from "react-router"
 import { Banner } from "@astryxdesign/core/Banner"
+import CheckAgain from "../components/CheckAgain.jsx"
 import MgrAccountCard from "../components/MgrAccountCard.jsx"
 import MgrAddPanel from "../components/MgrAddPanel.jsx"
 import MgrGuide from "../components/MgrGuide.jsx"
@@ -15,6 +16,10 @@ export default function Accounts({ kind = "youtube" }) {
   const { data, error, reload } = useLoad(k.list, [kind])
   const [panel, setPanel] = useState({ open: false, preset: "" })
   const [added, setAdded] = useState("")
+  const [rev, setRev] = useState(0)          // bumped by Check again so every open "Check setup" list asks again too
+  const [checked, setChecked] = useState(null)
+  const [checking, setChecking] = useState(false)
+  const check = () => { setRev((r) => r + 1); setChecking(true); reload().finally(() => { setChecking(false); setChecked(new Date()) }) }
   const accounts = data?.accounts || []
   const notice = params.get("connected") ? { status: "success", title: "Connected", description: "That account is signed in. Check the list below." }
     : params.get("error") ? { status: "error", title: "Sign-in failed", description: params.get("error") } : null
@@ -30,6 +35,7 @@ export default function Accounts({ kind = "youtube" }) {
         </div>
         <div className="hero-side">
           <button type="button" className="hero-btn" onClick={() => setPanel({ open: true, preset: "" })}>Add account</button>
+          <CheckAgain hero onCheck={check} loading={checking} checked={checked} />
           <Link className="hero-btn" to={k.home}>Back to {k.name}</Link>
         </div>
       </header>
@@ -40,7 +46,7 @@ export default function Accounts({ kind = "youtube" }) {
         <div className="grid grid--two grid--mgr">
           <div className="stack">
             {accounts.map((a) => <MgrAccountCard key={a.key} kind={kind} acct={a} accounts={accounts} openCheck={a.key === added || params.get("account") === a.key}
-              onChanged={reload} onReuse={(key) => setPanel({ open: true, preset: key })} />)}
+              checkKey={rev} onChanged={reload} onReuse={(key) => setPanel({ open: true, preset: key })} />)}
             {data && !accounts.length && <p className="muted">No accounts yet. Press Add account.</p>}
           </div>
           {data && <MgrGuide kind={kind} guide={data.guide} redirectUri={data.redirect_uri} origin={data.js_origin} />}
