@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { Heading } from "@astryxdesign/core/Heading"
-import { Text } from "@astryxdesign/core/Text"
+import { useCallback, useEffect, useState } from "react"
 import AllChannels from "../components/AllChannels.jsx"
 import CheckAgain from "../components/CheckAgain.jsx"
 import AllStudio from "../components/AllStudio.jsx"
-import HistoryTable, { groupRows } from "../components/HistoryTable.jsx"
+import AllHistory from "../components/AllHistory.jsx"
 import Nav from "../components/Nav.jsx"
 import Step from "../components/Step.jsx"
 import { PLATFORMS } from "../lib/all.js"
@@ -31,7 +29,6 @@ export default function AllPlatforms() {
       setItems(all.flat().sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))))
   }, [])
   useEffect(() => { reload(); load() }, [reload, load])
-  const groups = useMemo(() => groupRows(items), [items])
 
   return (
     <>
@@ -46,10 +43,7 @@ export default function AllPlatforms() {
       <div className="page stack">
         <Step n="1" title="All your channels and profiles" aside={<CheckAgain inline onCheck={() => { reload(); load() }} loading={loading} checked={checked} />}><AllChannels data={data} loading={loading} /></Step>
         <AllStudio data={data} onDone={load} />
-        <section className="history">
-          <div className="history-head"><Heading level={3}>History</Heading><Text size="sm" color="secondary">Posts made from this app on YouTube, LinkedIn, X and Meta. Edit or delete on each platform's own screen.</Text></div>
-          <HistoryTable items={groups} />
-        </section>
+        <AllHistory items={items} onChanged={load} />
       </div>
     </>
   )
