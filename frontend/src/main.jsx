@@ -9,6 +9,7 @@ import "./styles/themes.css"
 import "./styles/app.css"
 import { initTheme } from "./lib/theme.js"
 import Facebook from "./pages/Facebook.jsx"
+import MetaAccounts from "./pages/MetaAccounts.jsx"
 import Publish from "./pages/Publish.jsx"
 import YouTube from "./pages/YouTube.jsx"
 import Accounts from "./pages/Accounts.jsx"
@@ -24,6 +25,6 @@ const googleAnswer = window.location.pathname === "/" && answer.has("state") && 
 if (googleAnswer) window.location.replace((answer.get("state")?.startsWith("linkedin-") ? "/api/linkedin/callback" : "/api/youtube/callback") + window.location.search)
 
 initTheme()
-const router = createHashRouter([{ path: "/", element: <Publish /> }, { path: "/meta", element: <Facebook /> }, { path: "/youtube", element: <YouTube /> }, { path: "/youtube/accounts", element: <Accounts key="youtube" kind="youtube" /> }, { path: "/linkedin", element: <PostPage key="linkedin" p={LINKEDIN} /> }, { path: "/linkedin/accounts", element: <Accounts key="linkedin" kind="linkedin" /> }, { path: "/linkedin/done", element: <SignInDone /> },
+const router = createHashRouter([{ path: "/", element: <Publish /> }, { path: "/meta", element: <Facebook /> }, { path: "/meta/accounts", element: <MetaAccounts /> }, { path: "/youtube", element: <YouTube /> }, { path: "/youtube/accounts", element: <Accounts key="youtube" kind="youtube" /> }, { path: "/linkedin", element: <PostPage key="linkedin" p={LINKEDIN} /> }, { path: "/linkedin/accounts", element: <Accounts key="linkedin" kind="linkedin" /> }, { path: "/linkedin/done", element: <SignInDone /> },
   { path: "/all", element: <AllPlatforms /> }, { path: "/x", element: <PostPage key="x" p={X} /> }, { path: "/x/accounts", element: <Accounts key="x" kind="x" /> }, { path: "/x/done", element: <SignInDone type="x-signin" back="/x/accounts" name="X" /> }, { path: "/youtube/studio", element: <YouTubeStudio /> }])
 if (!googleAnswer) createRoot(document.getElementById("root")).render(<StrictMode><RouterProvider router={router} /></StrictMode>)

@@ -4,6 +4,7 @@ import time
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import expiry_dates
 import li_accounts
 import linkedin
 from config import settings
@@ -34,6 +35,7 @@ class EditAccount(BaseModel):
     label: str | None = None
     client_id: str | None = None
     client_secret: str | None = None
+    expires_on: str | None = None  # your own reminder date, YYYY-MM-DD; "" clears it
 
 
 def _card(a: li_accounts.Account) -> dict:
@@ -42,7 +44,9 @@ def _card(a: li_accounts.Account) -> dict:
     t = linkedin.saved()
     return {"key": a.key, "label": a.label, "source": "file", "client_from": a.client_from, "configured": a.configured,
             "client_hint": (a.client_id[:6] + "...") if a.client_id else "", "has_secret": bool(a.client_secret),
-            "connected": linkedin.connected(), "expired": linkedin.expired(), "name": t.get("name", ""), "email": t.get("email", "")}
+            "connected": linkedin.connected(), "expired": linkedin.expired(), "name": t.get("name", ""), "email": t.get("email", ""),
+            "signin_expires_at": t.get("expires_at") or None, "signin_note": "LinkedIn sign-ins last 60 days, then press Connect again." if t else "",
+            **expiry_dates.info("linkedin", a.key)}
 
 
 def _get(key: str) -> li_accounts.Account:
@@ -70,9 +74,22 @@ async def add_account(body: NewAccount):
 async def edit_account(key: str, body: EditAccount):
     _get(key)
     try:
-        return _card(li_accounts.update(key, body.label, body.client_id, body.client_secret))
+        when = expiry_dates.clean(body.expires_on) if body.expires_on is not None else None
+        acct = li_accounts.update(key, body.label, body.client_id, body.client_secret)
+        if when is not None:
+            expiry_dates.put("linkedin", key, when)
+        return _card(acct)
     except ValueError as e:
         raise HTTPException(422, str(e))
+
+
+@router.get("/accounts/{key}/values")
+async def edit_values(key: str):
+    """Everything the Edit panel shows, the secret included. Only read when Edit opens, never in the list."""
+    a = _get(key)
+    shared = bool(a.client_from)  # the client belongs to the account it shares: edit it there
+    return {"label": a.label, "client_id": "" if shared else a.client_id, "client_secret": "" if shared else a.client_secret,
+            "expires_on": expiry_dates.get("linkedin", key), "shared": shared}
 
 
 @router.delete("/accounts/{key}")

@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import expiry_dates
 import x_accounts
 import xapi
 from config import settings
@@ -30,6 +31,7 @@ class EditAccount(BaseModel):
     label: str | None = None
     client_id: str | None = None
     client_secret: str | None = None
+    expires_on: str | None = None  # your own reminder date, YYYY-MM-DD; "" clears it
 
 
 def _card(a: x_accounts.Account) -> dict:
@@ -38,7 +40,8 @@ def _card(a: x_accounts.Account) -> dict:
     t = xapi.saved()
     return {"key": a.key, "label": a.label, "source": "file", "client_from": a.client_from, "configured": a.configured,
             "client_hint": (a.client_id[:8] + "...") if a.client_id else "", "has_secret": bool(a.client_secret),
-            "connected": xapi.connected(), "expired": False, "name": t.get("name", ""), "email": f"@{t['username']}" if t.get("username") else ""}
+            "connected": xapi.connected(), "expired": False, "name": t.get("name", ""), "email": f"@{t['username']}" if t.get("username") else "",
+            "signin_expires_at": None, "signin_note": "Renews itself (X refresh token)." if xapi.connected() else "", **expiry_dates.info("x", a.key)}
 
 
 def _get(key: str) -> x_accounts.Account:
@@ -65,9 +68,22 @@ async def add_account(body: NewAccount):
 async def edit_account(key: str, body: EditAccount):
     _get(key)
     try:
-        return _card(x_accounts.update(key, body.label, body.client_id, body.client_secret))
+        when = expiry_dates.clean(body.expires_on) if body.expires_on is not None else None
+        acct = x_accounts.update(key, body.label, body.client_id, body.client_secret)
+        if when is not None:
+            expiry_dates.put("x", key, when)
+        return _card(acct)
     except ValueError as e:
         raise HTTPException(422, str(e))
+
+
+@router.get("/accounts/{key}/values")
+async def edit_values(key: str):
+    """Everything the Edit panel shows, the secret included. Only read when Edit opens, never in the list."""
+    a = _get(key)
+    shared = bool(a.client_from)  # the client belongs to the account it shares: edit it there
+    return {"label": a.label, "client_id": "" if shared else a.client_id, "client_secret": "" if shared else a.client_secret,
+            "expires_on": expiry_dates.get("x", key), "shared": shared}
 
 
 @router.delete("/accounts/{key}")

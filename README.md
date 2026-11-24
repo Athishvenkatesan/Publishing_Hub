@@ -145,6 +145,12 @@ For YouTube you can choose **Public**, **Unlisted** or **Private**.
 
 Open **http://localhost:3100/#/all** (nav: All platforms). One video, one AI run (`POST /api/analyze/all` writes the YouTube, LinkedIn, X and Meta posts), a review tab per platform, and one Post button. Meta (Facebook Pages, the linked Instagram account and Threads) is the fourth platform: its accounts come from the Meta token check, every ready one is ticked after the analysis, and it always posts now. X is shown but switched off for now.
 
+## Accounts managers: edit and expiry dates
+
+Every account card (YouTube, LinkedIn, X) has **Edit**: a slide-in panel that opens with the saved name, client ID, client secret (hidden behind Show) and **your own expiry date** (saved in `backend/account_expiry.json`, git-ignored). YouTube accounts set in `.env` are edited there. Each card shows when its sign-in runs out (LinkedIn: 60 days; YouTube and X renew themselves).
+
+**Meta accounts** (`#/meta/accounts`): the Facebook + Instagram token and the Threads token, each with who it is, when it expires (from Meta), what it can post to, and Edit (token, App ID, app secret, expiry date). With the app secret saved, every pasted token is swapped for a 60-day one, and **Make it last 60 days** extends the saved one. Everything is written to `backend/.env`.
+
 ## Meta screen (Meta Graph API)
 
 Open **http://localhost:3100/#/meta**. It uses a Meta user token from `backend/.env` (`META_ACCESS_TOKEN`), separate from Zernio. A new token pasted into `.env` is picked up without restarting the backend.

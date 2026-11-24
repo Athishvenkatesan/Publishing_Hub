@@ -280,3 +280,10 @@ button, input, textarea, select { font-family: inherit; }
 .counts--4 { grid-template-columns: repeat(4, 1fr); }
 @media (max-width: 1000px) { .counts--4 { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 600px) { .counts--4 { grid-template-columns: 1fr; } }
+/* Expiry lines on account cards */
+.exp { display: flex; flex-direction: column; gap: 6px; margin: var(--spacing-2) 0; }
+.exp-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-2); }
+.stack--tight { gap: 6px; }
+.tok-scopes { display: flex; flex-wrap: wrap; gap: 6px; }
+.secret-row { display: flex; align-items: center; gap: var(--spacing-2); }
+.secret-row .sel { flex: 1; min-width: 0; font-family: var(--font-mono, "JetBrains Mono", monospace); }

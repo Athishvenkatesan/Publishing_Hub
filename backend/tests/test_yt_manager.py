@@ -76,7 +76,13 @@ async def test_rename_remove_and_the_rules_for_env_accounts(client):
     key = (await add(client)).json()["key"]
     r = await client.patch(f"/api/youtube/manager/accounts/{key}", json={"label": "Renamed"})
     assert r.status_code == 200 and r.json()["label"] == "Renamed" and r.json()["key"] == key
-    assert (await client.patch("/api/youtube/manager/accounts/main1", json={"label": "x"})).status_code == 409
+    r = await client.patch("/api/youtube/manager/accounts/main1", json={"label": "Main renamed", "expires_on": "2027-01-31"})
+    assert r.status_code == 200 and r.json()["label"] == "Main renamed" and r.json()["expires_on"] == "2027-01-31"  # .env accounts can be edited too
+    assert "YOUTUBE_MAIN1_LABEL=Main renamed" in yt_accounts.ENV_FILE.read_text() and "env-secret-value" in yt_accounts.ENV_FILE.read_text()
+    assert (await client.patch("/api/youtube/manager/accounts/main1", json={"expires_on": "31/01/2027"})).status_code == 422
+    assert (await client.patch("/api/youtube/manager/accounts/main1", json={"expires_on": ""})).json()["expires_on"] == ""
+    v = (await client.get("/api/youtube/manager/accounts/main1/values")).json()  # the Edit panel starts from the saved values
+    assert v == {"label": "Main renamed", "client_id": "111-abc.apps.googleusercontent.com", "client_secret": "env-secret-value", "expires_on": "", "shared": False}
     assert (await client.patch(f"/api/youtube/manager/accounts/{key}", json={"client_id": "bad"})).status_code == 422
     connect_now(key)
     assert yt_accounts.token_path(key).exists()

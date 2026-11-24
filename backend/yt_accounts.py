@@ -17,6 +17,7 @@ from pathlib import Path
 
 from dotenv import dotenv_values
 
+import envfile
 from config import HERE, settings
 
 ENV_FILE = HERE / ".env"
@@ -148,6 +149,8 @@ def add(label: str, client_id: str = "", client_secret: str = "", client_from: s
 
 def update(key: str, label: str | None = None, client_id: str | None = None, client_secret: str | None = None) -> Account:
     accounts, items = load(), _read_file()
+    if key in accounts and accounts[key].source == "env":
+        return _update_env(accounts[key], label, client_id, client_secret)
     item = next((i for i in items if i.get("key") == key), None)
     if not item or key not in accounts or accounts[key].source != "file":
         raise PermissionError("Only accounts added on screen can be changed here. Edit backend/.env for the others.")
@@ -162,6 +165,26 @@ def update(key: str, label: str | None = None, client_id: str | None = None, cli
         item["client_id"], item["client_secret"] = cid, sec
     _write_file(items)
     return load()[key]
+
+
+def _update_env(a: Account, label: str | None, client_id: str | None, client_secret: str | None) -> Account:
+    """An account set in backend/.env: write the changed values back to its YOUTUBE_<KEY>_... lines."""
+    if a.key == "main" and not (dotenv_values(ENV_FILE).get("YOUTUBE_ACCOUNTS") or ""):
+        raise PermissionError("This channel comes from YOUTUBE_CLIENT_ID in backend/.env. Edit that file to change it.")
+    up, values = a.key.upper().replace("-", "_"), {}
+    if label is not None:
+        label = label.strip()
+        if not label or len(label) > 60:
+            raise ValueError("Give the account a name or email, up to 60 characters.")
+        values[f"YOUTUBE_{up}_LABEL"] = label
+    if client_id or client_secret:
+        cid, sec = (client_id or a.client_id).strip(), (client_secret or a.client_secret).strip()
+        if not CLIENT_ID.match(cid) or len(sec) < 8:
+            raise ValueError("The client ID or secret does not look right.")
+        values.update({f"YOUTUBE_{up}_CLIENT_ID": cid, f"YOUTUBE_{up}_CLIENT_SECRET": sec})
+    if values:
+        envfile.set_values(values, ENV_FILE)
+    return load()[a.key]
 
 
 def remove(key: str) -> None:

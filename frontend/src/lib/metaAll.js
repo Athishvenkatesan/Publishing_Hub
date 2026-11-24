@@ -19,7 +19,7 @@ export function metaAccounts(check) {
 const Review = (props) => createElement(MetaReview, { ...props, showCaption: true })
 
 export const META = {
-  kind: "meta", aiKey: "facebook", name: "Meta", unit: "Account", accountsRoute: "/meta", screen: "/meta", Review,
+  kind: "meta", aiKey: "facebook", name: "Meta", unit: "Account", accountsRoute: "/meta/accounts", screen: "/meta", Review,
   api: {
     accounts: () => fbCheck().then((c) => ({ accounts: metaAccounts(c) })),
     profiles: () => Promise.resolve({ profiles: [] }),

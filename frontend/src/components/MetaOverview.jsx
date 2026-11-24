@@ -1,4 +1,5 @@
 // Step 1 on the Meta screen: who the token belongs to, how many Pages, which platforms are ready. Full details fold open.
+import { Link } from "react-router"
 import { Banner } from "@astryxdesign/core/Banner"
 import { Button } from "@astryxdesign/core/Button"
 import { Text } from "@astryxdesign/core/Text"
@@ -22,7 +23,10 @@ export default function MetaOverview({ state, onCheck }) {
       {data && <Text size="sm" color="secondary">Ready: {ready.map(([, n]) => n).join(", ") || "none"}. Not yet: {PLATFORMS.filter((p) => !ready.includes(p)).map(([, n]) => n).join(", ") || "none"}.</Text>}
       <details><summary><Text size="sm" color="secondary">Token details and what each platform needs</Text></summary>
         <FbCheck state={state} onCheck={onCheck} /></details>
-      {!data && <div><Button variant="secondary" label="Check again" onClick={onCheck} isLoading={loading} /></div>}
+      <div className="btn-pair">
+        <Link className="btn-link btn-link--ghost" to="/meta/accounts">Manage accounts</Link>
+        {!data && <Button variant="secondary" label="Check again" onClick={onCheck} isLoading={loading} />}
+      </div>
     </div>
   )
 }

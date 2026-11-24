@@ -79,6 +79,7 @@ export const mgrAdd = (body) => mgr("accounts", jsonBody("POST", body))
 export const mgrEdit = (key, body) => mgr(`accounts/${key}`, jsonBody("PATCH", body))
 export const mgrDelete = (key) => mgr(`accounts/${key}`, { method: "DELETE" })
 export const mgrCheck = (key) => mgr(`accounts/${key}/check`)
+export const mgrValues = (key) => mgr(`accounts/${key}/values`)
 // Start Google sign-in for one account and return to `back` (accounts | studio) afterwards.
 export const connectAccount_ = (key, opts = {}, back = "accounts") =>
   fetch("/api/youtube/connect?" + new URLSearchParams({ account: key, back, check: "true", ...opts })).then(json)
@@ -88,3 +89,10 @@ export const ytPublishMulti = (form) => fetch("/api/youtube/posts/multi", { meth
 // Channels: who each signed-in channel is, and which ones fit a video
 export const ytChannelProfiles = () => fetch("/api/youtube/channels/profiles").then(json)
 export const ytSuggestChannels = (body) => fetch("/api/youtube/channels/suggest", jsonBody("POST", body)).then(json)
+
+// Meta accounts manager (the Facebook + Instagram token and the Threads token)
+const metaMgr = (path, init) => fetch(`/api/meta/manager/${path}`, init).then(json)
+export const metaMgrList = () => metaMgr("accounts")
+export const metaMgrEdit = (key, data) => metaMgr(`accounts/${key}`, jsonBody("PATCH", data))
+export const metaMgrValues = (key) => metaMgr(`accounts/${key}/values`)
+export const metaMgrExtend = (key) => metaMgr(`accounts/${key}/extend`, { method: "POST" })

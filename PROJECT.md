@@ -207,3 +207,10 @@ Not scaffolded with `dak init`: this is a single-screen POC. SQLite instead of P
 
 ### 2026-11-23 - Photo post removed from the Meta screen
 - "Post a photo to Facebook instead" removed at the user's request (`FbPhoto.jsx`, `FbPagePick.jsx`, `fbPublishPhoto`, the `.fold` styles). The backend `/api/facebook/photos` route is kept so old photo rows in the history still refresh.
+
+### 2026-11-24 - Meta accounts manager, Edit + expiry dates on every manager
+- `#/meta/accounts` (`routes/meta_manager.py`, `meta_tokens.py`, `MetaAccounts.jsx`, `MetaTokenCard.jsx`): two cards (Facebook + Instagram token, Threads token) with status, owner, token expiry from Meta, what each can post to, permissions; Edit writes token / App ID / app secret to `.env` (`envfile.py`); with the secret a pasted token is swapped for a 60-day one (fb_exchange_token, th_exchange_token); "Make it last 60 days" extends the saved one. Links from the Meta screen and the All platforms screen.
+- Every manager card (YouTube, LinkedIn, X): Edit panel (`MgrEditPanel.jsx`) for name, client ID, secret and your own expiry date (`expiry_dates.py`, `account_expiry.json`, git-ignored); sign-in expiry shown (`MgrExpiry.jsx`). YouTube accounts from `.env` are now editable (written back to `.env`).
+- Tests redirect `.env` writes and the expiry file to a temp folder (`tests/conftest.py`). One earlier test run wrote `YOUTUBE_MAIN1_LABEL=x` into the real `.env`; removed.
+- Seen live: the saved Meta token expired 23 Nov 11:00 PST; the screen shows "Not working" with Meta's message. Not verified: saving a real token or the 60-day swap (no app secret given).
+- 24 Nov: Edit panels now open filled with the saved values (secrets and tokens behind Show), read only when Edit opens via `GET .../accounts/{key}/values` on each manager; only changed values are saved.
