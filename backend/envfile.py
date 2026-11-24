@@ -34,3 +34,15 @@ def set_values(values: dict[str, str], path=None) -> None:
             lines[hit] = f"{name}={value}"
     path.write_text("\n".join(lines) + "\n")
     path.chmod(0o600)  # holds secrets
+
+
+def remove_names(names: list[str], path=None) -> None:
+    """Delete each NAME=... line. Every other line and comment stays as it is."""
+    path = path or ENV
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return
+    pats = [re.compile(rf"^\s*{re.escape(n)}\s*=") for n in names]
+    path.write_text("\n".join(l for l in lines if not any(p.match(l) for p in pats)) + "\n")
+    path.chmod(0o600)

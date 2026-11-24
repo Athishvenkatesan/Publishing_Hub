@@ -188,10 +188,23 @@ def _update_env(a: Account, label: str | None, client_id: str | None, client_sec
 
 
 def remove(key: str) -> None:
+    """Forget an account and its sign-in. One set in backend/.env loses its YOUTUBE_<KEY>_... lines and its place in YOUTUBE_ACCOUNTS."""
     accounts = load()
-    if key not in accounts or accounts[key].source != "file":
-        raise PermissionError("Only accounts added on screen can be removed here. Edit backend/.env for the others.")
+    if key not in accounts:
+        raise PermissionError("That account is not in the list.")
     if any(a.client_from == key for a in accounts.values()):
         raise ValueError("Other channels use this account's Google app. Remove them first.")
-    _write_file([i for i in _read_file() if i.get("key") != key])
+    if accounts[key].source == "env":
+        _remove_env(key)
+    else:
+        _write_file([i for i in _read_file() if i.get("key") != key])
     token_path(key).unlink(missing_ok=True)
+
+
+def _remove_env(key: str) -> None:
+    listed = [k.strip() for k in (dotenv_values(ENV_FILE).get("YOUTUBE_ACCOUNTS") or "").split(",") if k.strip()]
+    if key not in [k.lower() for k in listed]:  # the old single YOUTUBE_CLIENT_ID pair
+        raise PermissionError("This channel comes from YOUTUBE_CLIENT_ID in backend/.env. Edit that file to remove it.")
+    up = key.upper().replace("-", "_")
+    envfile.set_values({"YOUTUBE_ACCOUNTS": ",".join(k for k in listed if k.lower() != key)}, ENV_FILE)
+    envfile.remove_names([f"YOUTUBE_{up}_LABEL", f"YOUTUBE_{up}_CLIENT_ID", f"YOUTUBE_{up}_CLIENT_SECRET"], ENV_FILE)

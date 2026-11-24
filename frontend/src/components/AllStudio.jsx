@@ -91,7 +91,7 @@ export default function AllStudio({ data, onDone }) {
               accept="video/mp4" description="MP4, up to 300 MB (LinkedIn takes MP4 only)." working="the YouTube, LinkedIn, X and Meta posts" note="writes all four posts" />
           </Step>
         </div>
-        <Step n="3" title="Check each post" dim={!file}>
+        <Step n="3" title="Check each post">
           {active ? (
             <div className="stack">
               <SegmentedControl label="Platform" value={active.kind} onChange={setTab}>
@@ -103,7 +103,7 @@ export default function AllStudio({ data, onDone }) {
           ) : <Text color="secondary">Switch on a platform to write its post.</Text>}
         </Step>
         <div className="rail">
-          <Step n="4" title="Choose where to post" dim={!file}>
+          <Step n="4" title="Choose where to post">
             <div className="stack">
               {PLATFORMS.map((p) => (
                 <AllPicker key={p.kind} p={p} accounts={by[p.kind].accounts} profiles={by[p.kind].profiles} enabled={on.includes(p)}

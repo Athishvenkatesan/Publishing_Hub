@@ -292,3 +292,9 @@ button, input, textarea, select { font-family: inherit; }
 .check-again-time { font-size: 12px; color: #9fd3c5; }
 .hero-btn:disabled { opacity: .7; cursor: wait; }
 .step-aside { margin-left: auto; display: flex; align-items: center; gap: var(--spacing-3); }
+
+/* Meta: one card holding the Facebook + Instagram token and the Threads token */
+.tok-section { display: flex; flex-direction: column; gap: var(--spacing-3); }
+.tok-section + .tok-section { border-top: 1px solid var(--color-border-emphasized, #d5dbe0); padding-top: var(--spacing-4); }
+.meta-head { display: flex; align-items: center; gap: var(--spacing-3); flex-wrap: wrap; }
+.app-ids { display: flex; flex-direction: column; gap: 2px; }

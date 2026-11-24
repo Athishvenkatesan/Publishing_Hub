@@ -80,13 +80,13 @@ export default function MgrAccountCard({ acct, accounts, onChanged, onReuse, ope
       {editable && (
         <div className="row-btns">
           <Button size="sm" variant="secondary" label="Edit" onClick={() => setEditing(true)} />
-          {mine && (confirm
+          {(mine || kind === "youtube") && (confirm
             ? <><Button size="sm" label="Yes, remove" isLoading={busy === "remove"} onClick={remove} /><Button size="sm" variant="secondary" label="Keep it" onClick={() => setConfirm(false)} /></>
             : <Button size="sm" variant="secondary" label="Remove" onClick={() => setConfirm(true)} />)}
         </div>
       )}
       {confirm && <Text size="sm" color="secondary">{k.removeNote}{reusedBy ? ` ${reusedBy} other account(s) share this ${k.appWord}, so remove those first.` : ""}</Text>}
-      {!mine && <Text size="sm" color="secondary">Set in backend/.env ({acct.env_names || "see .env.example"}). Edit saves your changes there; to remove it, edit that file.</Text>}
+      {!mine && <Text size="sm" color="secondary">Set in backend/.env ({acct.env_names || "see .env.example"}). Edit and Remove change that file.</Text>}
       {tokenOpen && <MgrTokenBox kind={kind} acct={acct} onSaved={() => { setTokenOpen(false); setOpen(true); onChanged(); setTick((t) => t + 1) }} />}
       {open && <MgrChecklist acct={acct} onConnect={connect} refreshKey={`${tick}:${checkKey}`} kind={kind} />}
       <MgrEditPanel open={editing} title={`Edit ${acct.label}`} sub={acct.client_from ? `${k.name} account. It shares another account's ${k.appWord}: change the client ID and secret on that account.` : `${k.name} account. These are the saved values; only what you change is saved.`} fields={fields}

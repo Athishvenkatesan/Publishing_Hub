@@ -145,3 +145,14 @@ async def test_a_handle_label_gets_a_sensible_key(client):
     r = await add(client, label="@GenVideoAIforKids")
     assert r.json()["key"] == "genvideoaiforkids"
     assert (await add(client, label="@@")).json()["key"] == "account"
+
+
+async def test_an_env_account_can_be_removed_and_leaves_the_rest_of_env_alone(client):
+    yt_accounts.ENV_FILE.write_text(ENV.replace("YOUTUBE_ACCOUNTS=main1", "YOUTUBE_ACCOUNTS=main1,other") + "# keep me\nYOUTUBE_OTHER_LABEL=o@example.com\nOTHER_SETTING=1\n")
+    connect_now("main1")
+    assert (await client.delete("/api/youtube/manager/accounts/main1")).json() == {"ok": True}
+    text = yt_accounts.ENV_FILE.read_text()
+    assert "YOUTUBE_ACCOUNTS=other" in text and "MAIN1" not in text and "env-secret-value" not in text
+    assert "# keep me" in text and "YOUTUBE_OTHER_LABEL=o@example.com" in text and "OTHER_SETTING=1" in text
+    assert not yt_accounts.token_path("main1").exists()
+    assert "main1" not in [a["key"] for a in (await client.get("/api/youtube/manager/accounts")).json()["accounts"]]

@@ -95,4 +95,5 @@ const metaMgr = (path, init) => fetch(`/api/meta/manager/${path}`, init).then(js
 export const metaMgrList = () => metaMgr("accounts")
 export const metaMgrEdit = (key, data) => metaMgr(`accounts/${key}`, jsonBody("PATCH", data))
 export const metaMgrValues = (key) => metaMgr(`accounts/${key}/values`)
+export const metaMgrRemove = () => metaMgr("accounts/meta", { method: "DELETE" })
 export const metaMgrExtend = (key) => metaMgr(`accounts/${key}/extend`, { method: "POST" })

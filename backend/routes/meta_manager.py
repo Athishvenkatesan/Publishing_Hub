@@ -23,7 +23,9 @@ GUIDE = [
 
 class EditToken(BaseModel):
     token: str | None = None        # a new token to use ("" removes it)
-    app_id: str | None = None       # Meta only
+    app_id: str | None = None       # the Facebook App ID (Meta only)
+    instagram_app_id: str | None = None  # Meta only
+    threads_app_id: str | None = None    # Meta only
     app_secret: str | None = None   # Meta app secret, or the Threads app secret
     expires_on: str | None = None   # your own reminder date, YYYY-MM-DD; "" clears it
 
@@ -35,7 +37,7 @@ def _hint(token: str) -> str:
 async def _meta_card() -> dict:
     v, token = mt.env(), mt.env().get("META_ACCESS_TOKEN", "")
     card = {"key": "meta", "label": "Facebook + Instagram", "has_token": bool(token), "token_hint": _hint(token), "valid": False, "error": "",
-            "who": "", "expires_at": None, "never_expires": False, "app_id": v.get("META_APP_ID", ""), "has_app_secret": bool(v.get("META_APP_SECRET")),
+            "who": "", "expires_at": None, "never_expires": False, "app_id": v.get("META_APP_ID", ""), "instagram_app_id": v.get("INSTAGRAM_APP_ID", ""), "threads_app_id": v.get("THREADS_APP_ID", ""), "has_app_secret": bool(v.get("META_APP_SECRET")),
             "scopes": [], "pages": [], "can": {}, **expiry_dates.info("meta", "meta")}
     if not token:
         return card
@@ -97,8 +99,8 @@ async def edit_values(key: str):
     v = mt.env()
     if _key(key) == "meta":
         app_id = v.get("META_APP_ID") or ((await mt.meta_debug(v["META_ACCESS_TOKEN"])).get("app_id", "") if v.get("META_ACCESS_TOKEN") else "")
-        return {"token": v.get("META_ACCESS_TOKEN", ""), "app_id": app_id, "app_secret": v.get("META_APP_SECRET", ""),
-                "expires_on": expiry_dates.get("meta", key)}
+        return {"token": v.get("META_ACCESS_TOKEN", ""), "app_id": app_id, "instagram_app_id": v.get("INSTAGRAM_APP_ID", ""),
+                "threads_app_id": v.get("THREADS_APP_ID", ""), "app_secret": v.get("META_APP_SECRET", ""), "expires_on": expiry_dates.get("meta", key)}
     return {"token": v.get("THREADS_ACCESS_TOKEN", ""), "app_secret": v.get("THREADS_APP_SECRET", ""), "expires_on": expiry_dates.get("meta", key)}
 
 
@@ -108,10 +110,13 @@ async def edit(key: str, body: EditToken):
     try:
         when = expiry_dates.clean(body.expires_on) if body.expires_on is not None else None
         values: dict[str, str] = {}
-        if key == "meta" and body.app_id is not None:
-            if body.app_id.strip() and not body.app_id.strip().isdigit():
-                raise ValueError("The App ID is a number, like 1145493691227848.")
-            values["META_APP_ID"] = body.app_id.strip()
+        if key == "meta":  # the three App IDs ("" removes one)
+            for name, env_name, given in (("Facebook", "META_APP_ID", body.app_id), ("Instagram", "INSTAGRAM_APP_ID", body.instagram_app_id), ("Threads", "THREADS_APP_ID", body.threads_app_id)):
+                if given is None:
+                    continue
+                if given.strip() and not given.strip().isdigit():
+                    raise ValueError(f"The {name} App ID is a number, like 1145493691227848.")
+                values[env_name] = given.strip()
         if body.app_secret is not None:  # "" removes it
             values["META_APP_SECRET" if key == "meta" else "THREADS_APP_SECRET"] = body.app_secret.strip()
         if values:
@@ -145,3 +150,17 @@ async def extend(key: str):
     except meta.MetaError as e:
         raise HTTPException(e.status, e.message)
     return await _card(key)
+
+
+# Everything Remove clears: the token, the three App IDs and the secret (and any old Threads values). META_GRAPH_VERSION stays.
+META_VALUES = ["META_ACCESS_TOKEN", "META_APP_ID", "META_APP_SECRET", "INSTAGRAM_APP_ID", "THREADS_APP_ID",
+               "THREADS_ACCESS_TOKEN", "THREADS_TOKEN_EXPIRES", "THREADS_APP_SECRET"]
+
+
+@router.delete("/accounts/meta")
+async def remove_meta():
+    """Forget the Meta setup on this computer. Posts already on Facebook, Instagram or Threads are not touched."""
+    mt.save({name: "" for name in META_VALUES})
+    for key in ("meta", "threads"):
+        expiry_dates.put("meta", key, "")
+    return await _card("meta")

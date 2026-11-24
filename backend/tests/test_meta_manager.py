@@ -79,6 +79,28 @@ async def test_bad_input_is_refused(client):
 
 async def test_edit_values_show_the_saved_token_and_secret(client):
     envfile.set_values({"META_ACCESS_TOKEN": SHORT, "META_APP_ID": "555", "META_APP_SECRET": "sec", "THREADS_APP_SECRET": "ts"})
-    assert (await client.get("/api/meta/manager/accounts/meta/values")).json() == {"token": SHORT, "app_id": "555", "app_secret": "sec", "expires_on": ""}
+    assert (await client.get("/api/meta/manager/accounts/meta/values")).json() == {"token": SHORT, "app_id": "555", "instagram_app_id": "", "threads_app_id": "", "app_secret": "sec", "expires_on": ""}
     assert (await client.get("/api/meta/manager/accounts/threads/values")).json()["app_secret"] == "ts"
     assert (await client.get("/api/meta/manager/accounts/nope/values")).status_code == 404
+
+
+async def test_the_three_app_ids_are_saved_shown_and_checked(client):
+    d = (await client.patch("/api/meta/manager/accounts/meta", json={"app_id": "111", "instagram_app_id": "222", "threads_app_id": "333"})).json()
+    assert (d["app_id"], d["instagram_app_id"], d["threads_app_id"]) == ("111", "222", "333")
+    v = envfile.read()
+    assert (v["META_APP_ID"], v["INSTAGRAM_APP_ID"], v["THREADS_APP_ID"]) == ("111", "222", "333")
+    got = (await client.get("/api/meta/manager/accounts/meta/values")).json()
+    assert (got["app_id"], got["instagram_app_id"], got["threads_app_id"]) == ("111", "222", "333")
+    assert (await client.patch("/api/meta/manager/accounts/meta", json={"instagram_app_id": "abc"})).status_code == 422
+    cleared = (await client.patch("/api/meta/manager/accounts/meta", json={"threads_app_id": ""})).json()
+    assert cleared["threads_app_id"] == "" and cleared["instagram_app_id"] == "222"
+
+
+async def test_remove_clears_the_meta_setup_and_keeps_other_lines(client):
+    envfile.set_values({"META_ACCESS_TOKEN": SHORT, "META_APP_ID": "555", "META_APP_SECRET": "sec", "INSTAGRAM_APP_ID": "2", "THREADS_APP_ID": "3", "META_GRAPH_VERSION": "v21.0"})
+    await client.patch("/api/meta/manager/accounts/meta", json={"expires_on": "2027-01-31"})
+    d = (await client.delete("/api/meta/manager/accounts/meta")).json()
+    assert not d["has_token"] and d["app_id"] == "" and d["instagram_app_id"] == "" and d["expires_on"] == ""
+    v = envfile.read()
+    assert v["META_ACCESS_TOKEN"] == v["META_APP_SECRET"] == v["INSTAGRAM_APP_ID"] == "" and v["META_GRAPH_VERSION"] == "v21.0"
+    assert settings.meta_access_token == ""

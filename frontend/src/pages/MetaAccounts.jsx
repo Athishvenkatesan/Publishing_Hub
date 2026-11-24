@@ -22,10 +22,9 @@ export default function MetaAccounts() {
         <div className="hero-copy">
           <span className="eyebrow eyebrow--light">Meta</span>
           <h1 className="hero-title">Accounts and tokens</h1>
-          <p className="hero-sub">The token behind Facebook and Instagram, and the Threads token. See who each one is and when it runs out, paste a new one, and make it last 60 days.</p>
+          <p className="hero-sub">One card for all three Meta platforms: Facebook, Instagram and Threads. See who each token is and when it runs out, paste a new one, and make it last 60 days.</p>
         </div>
         <div className="hero-side">
-          <CheckAgain hero onCheck={check} loading={checking} checked={checked} />
           <Link className="hero-btn" to="/meta">Back to Meta</Link>
         </div>
       </header>
@@ -34,7 +33,15 @@ export default function MetaAccounts() {
         <div className="grid grid--two grid--mgr">
           <div className="stack">
             {!data && !error && <Text color="secondary">Asking Meta about your tokens...</Text>}
-            {data?.accounts.map((t) => <MetaTokenCard key={t.key} t={t} onChanged={reload} />)}
+            {data && (
+              <article className="panel acct-card">
+                <div className="meta-head">
+                  <div><Heading level={3}>Meta</Heading><Text size="sm" color="secondary">Facebook, Instagram and Threads</Text></div>
+                  <div className="step-aside"><CheckAgain inline onCheck={check} loading={checking} checked={checked} /></div>
+                </div>
+                <MetaTokenCard t={data.accounts.find((a) => a.key === "meta")} onChanged={reload} />
+              </article>
+            )}
           </div>
           {data && (
             <section className="panel">
