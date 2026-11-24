@@ -220,3 +220,6 @@ Not scaffolded with `dak init`: this is a single-screen POC. SQLite instead of P
 - The token saved on 24 Nov lacks pages_manage_posts, instagram_basic and instagram_content_publish (the 23 Nov one had them), so Facebook and Instagram show as not ready and the linked Instagram account is hidden.
 - All platforms screen: Check again button re-asks every platform (allSettled), shows the last-checked time and each failing platform's reason; a failing platform shows no accounts instead of stale ones.
 - 24 Nov: Check again on every manager screen: a button in each account or token card (next to Edit / Check setup) and one in the page header with the last-checked time. YouTube, LinkedIn and X re-read the list and re-run the checklist; Meta asks Meta about the tokens again. Checked with a temporary jsdom run against the live backend (read-only calls); not seen in a real browser.
+
+### 2026-11-24 - Port 8100 clash with DPH
+- `npm run dev:backend` failed with "address already in use": the DPH backend (DGM/DPH) was running on 8100. POC and DPH both use 8100/3100, and the POC sign-in addresses at Google/LinkedIn/X are registered on 8100, so the ports stay; only one project runs at a time. `scripts/port-free.sh` now runs before `npm run dev` and `npm run dev:backend` and says which project holds the port and how to stop it.
